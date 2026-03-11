@@ -83,7 +83,7 @@ PROP_SCONTO = (
     "1️⃣  Iscriviti tramite questo link:\n"
     "https://dashboard.vegafunded.com/portal/referral/FDSNOFFY\n\n"
     "2️⃣  Al pagamento inserisci il codice promo:\n"
-    "🟡  GOLDWAVE\n\n"
+    "🟡  GOLDFUSION\n\n"
     "Lo sconto si applica automaticamente su qualsiasi conto.\n\n"
     "Hai dubbi sulla scelta del conto?\n"
     "💬 " + SUPP
