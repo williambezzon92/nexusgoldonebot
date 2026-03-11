@@ -7,6 +7,8 @@ logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.environ.get("BOT_TOKEN", "8274279855:AAFIvg_3Yo21YKrkoj7oleNqD3m8m0qLmEA")
 
+SUPP = '<a href="https://t.me/SuppNexusGoldOne">@SuppNexusGoldOne</a>'
+
 # ─────────────────────────────────────────
 #  MESSAGGI
 # ─────────────────────────────────────────
@@ -14,7 +16,8 @@ TOKEN = os.environ.get("BOT_TOKEN", "8274279855:AAFIvg_3Yo21YKrkoj7oleNqD3m8m0qL
 WELCOME = (
     "Benvenuti in NexusGoldOne ⚡\n\n"
     "Qua sotto si trovano tutte le informazioni necessarie.\n\n"
-    "Se non bastassero o volete approfondire altro scrivete al nostro supporto: @SuppNexusGoldOne"
+    "Se non bastassero o volete approfondire altro scrivete al nostro supporto: "
+    + SUPP
 )
 
 SOFTWARE = (
@@ -25,7 +28,7 @@ SOFTWARE = (
     "È studiato non per fare profitti alti, ma per conservare il capitale operando solo quando serve, "
     "con poche operazioni e un’ottica di lungo termine.\n\n"
     "Per qualsiasi domanda scrivi al Supporto:\n"
-    "💬 @SuppNexusGoldOne\n\n"
+    "💬 " + SUPP + "\n\n"
     "Altrimenti, procedi con l’apertura del conto tramite la guida qui sotto ⬇️\n\n"
     "Una volta completata la registrazione ed eseguito il deposito, contatta il Supporto "
     "per ricevere il link di allacciamento alla strategia."
@@ -38,7 +41,7 @@ MANUALE = (
     "sia in modalità intraday che multiday. "
     "Le operazioni vengono replicate automaticamente sul tuo conto.\n\n"
     "Per qualsiasi domanda scrivi al Supporto:\n"
-    "💬 @SuppNexusGoldOne\n\n"
+    "💬 " + SUPP + "\n\n"
     "Altrimenti, procedi con l’apertura del conto tramite la guida qui sotto ⬇️\n\n"
     "Una volta completata la registrazione e il deposito, contatta il Supporto "
     "per ricevere il link di allacciamento alla strategia."
@@ -72,7 +75,7 @@ PROP_VEGA = (
     "✅  Profit split aumentato o giorni di prelievo ridotti\n"
     "✅  Regole chiare, pensate per formare trader professionisti\n\n"
     "Per domande sulla scelta del conto:\n"
-    "💬 @SuppNexusGoldOne"
+    "💬 " + SUPP
 )
 
 PROP_SCONTO = (
@@ -83,7 +86,7 @@ PROP_SCONTO = (
     "🟡  GOLDWAVE\n\n"
     "Lo sconto si applica automaticamente su qualsiasi conto.\n\n"
     "Hai dubbi sulla scelta del conto?\n"
-    "💬 @SuppNexusGoldOne"
+    "💬 " + SUPP
 )
 
 PROP_PASSAGGIO = (
@@ -100,7 +103,7 @@ PROP_PASSAGGIO = (
     "💡 Consiglio: scegli sempre la Step 1 (fase singola)\n"
     "per un passaggio più rapido ed efficiente.\n\n"
     "Per prenotare il servizio o maggiori informazioni:\n"
-    "💬 @SuppNexusGoldOne"
+    "💬 " + SUPP
 )
 
 PROP_PARLA = (
@@ -108,7 +111,7 @@ PROP_PARLA = (
     "Il nostro team è disponibile per rispondere a qualsiasi\n"
     "domanda e guidarti passo passo.\n\n"
     "Scrivici qui:\n"
-    "💬 @SuppNexusGoldOne"
+    "💬 " + SUPP
 )
 
 # ─────────────────────────────────────────
@@ -158,7 +161,7 @@ def back_menu_keyboard():
 # ─────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(WELCOME, reply_markup=main_keyboard())
+    await update.message.reply_text(WELCOME, reply_markup=main_keyboard(), parse_mode="HTML")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -166,31 +169,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "menu":
-        await query.edit_message_text(WELCOME, reply_markup=main_keyboard())
+        await query.edit_message_text(WELCOME, reply_markup=main_keyboard(), parse_mode="HTML")
 
     elif data == "software":
-        await query.edit_message_text(SOFTWARE, reply_markup=software_keyboard())
+        await query.edit_message_text(SOFTWARE, reply_markup=software_keyboard(), parse_mode="HTML")
 
     elif data == "manuale":
-        await query.edit_message_text(MANUALE, reply_markup=manuale_keyboard())
+        await query.edit_message_text(MANUALE, reply_markup=manuale_keyboard(), parse_mode="HTML")
 
     elif data == "prop":
-        await query.edit_message_text(PROP_INTRO, reply_markup=prop_keyboard())
+        await query.edit_message_text(PROP_INTRO, reply_markup=prop_keyboard(), parse_mode="HTML")
 
     elif data == "prop_cose":
-        await query.edit_message_text(PROP_COSE, reply_markup=back_prop_keyboard())
+        await query.edit_message_text(PROP_COSE, reply_markup=back_prop_keyboard(), parse_mode="HTML")
 
     elif data == "prop_vega":
-        await query.edit_message_text(PROP_VEGA, reply_markup=back_prop_keyboard())
+        await query.edit_message_text(PROP_VEGA, reply_markup=back_prop_keyboard(), parse_mode="HTML")
 
     elif data == "prop_sconto":
-        await query.edit_message_text(PROP_SCONTO, reply_markup=back_prop_keyboard())
+        await query.edit_message_text(PROP_SCONTO, reply_markup=back_prop_keyboard(), parse_mode="HTML")
 
     elif data == "prop_passaggio":
-        await query.edit_message_text(PROP_PASSAGGIO, reply_markup=back_prop_keyboard())
+        await query.edit_message_text(PROP_PASSAGGIO, reply_markup=back_prop_keyboard(), parse_mode="HTML")
 
     elif data == "prop_parla":
-        await query.edit_message_text(PROP_PARLA, reply_markup=back_prop_keyboard())
+        await query.edit_message_text(PROP_PARLA, reply_markup=back_prop_keyboard(), parse_mode="HTML")
 
 # ─────────────────────────────────────────
 #  AVVIO
