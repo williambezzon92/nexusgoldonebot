@@ -29,7 +29,7 @@ SOFTWARE = (
 
 MANUALE = (
     "Copytrading Manuale 📊\n\n"
-    "GoldWave è un copytrading gestito da un trader professionista.\n"
+    "GoldFusion è un copytrading gestito da un trader professionista.\n"
     "Ogni operazione viene aperta con Stop Loss e Take Profit,\n"
     "sia in modalità intraday che multiday.\n"
     "Le operazioni vengono replicate automaticamente sul tuo conto.\n\n"
