@@ -22,29 +22,27 @@ WELCOME = (
 
 SOFTWARE = (
     "Copytrading Software 🤖\n\n"
-    "NexusOne è un software di trading automatizzato (Expert Advisor) su XAUUSD (oro). "
-    "Opera in modo completamente automatico sul tuo conto, senza che tu debba fare nulla. "
-    "Utilizza un sistema di TP e SL ad ogni operazione.\n\n"
-    "È studiato non per fare profitti alti, ma per conservare il capitale operando solo quando serve, "
-    "con poche operazioni e un’ottica di lungo termine.\n\n"
-    "Per qualsiasi domanda scrivi al Supporto:\n"
+    "Trovi tutta la spiegazione su come funziona nel PDF qui sopra.\n\n"
+    "Per qualsiasi domanda scrivici qui:\n"
     "💬 " + SUPP + "\n\n"
-    "Altrimenti, procedi con l’apertura del conto tramite la guida qui sotto ⬇️\n\n"
-    "Una volta completata la registrazione ed eseguito il deposito, contatta il Supporto "
-    "per ricevere il link di allacciamento alla strategia."
+    "Altrimenti, qui sotto trovi il PDF con la guida completa "
+    "per l’apertura del conto ⬇️"
 )
 
 MANUALE = (
     "Copytrading Manuale 📊\n\n"
-    "GoldFusion è un copytrading gestito da un trader professionista. "
-    "Ogni operazione viene aperta con Stop Loss e Take Profit, "
-    "sia in modalità intraday che multiday. "
-    "Le operazioni vengono replicate automaticamente sul tuo conto.\n\n"
-    "Per qualsiasi domanda scrivi al Supporto:\n"
+    "Trovi tutta la spiegazione su come funziona nel PDF qui sopra.\n\n"
+    "Per qualsiasi domanda scrivici qui:\n"
     "💬 " + SUPP + "\n\n"
-    "Altrimenti, procedi con l’apertura del conto tramite la guida qui sotto ⬇️\n\n"
-    "Una volta completata la registrazione e il deposito, contatta il Supporto "
-    "per ricevere il link di allacciamento alla strategia."
+    "Altrimenti, qui sotto trovi il PDF con la guida completa "
+    "per l’apertura del conto ⬇️"
+)
+
+PDF_IN_ARRIVO = (
+    "📋 PDF in arrivo!\n\n"
+    "La guida sarà disponibile a breve.\n"
+    "Per informazioni nel frattempo scrivici:\n"
+    "💬 " + SUPP
 )
 
 PROP_INTRO = (
@@ -92,17 +90,18 @@ PROP_SCONTO = (
 PROP_PASSAGGIO = (
     "Passaggio Automatico ⚡\n\n"
     "Non vuoi passare la challenge da solo? Ci pensiamo noi.\n\n"
-    "I nostri tecnici passeranno qualsiasi tipo di prop firm\n"
-    "al posto tuo.\n\n"
+    "I nostri tecnici gestiranno l’intera challenge al posto tuo.\n\n"
     "Come funziona:\n"
     "1️⃣  Acquisti la prop firm\n"
     "2️⃣  Ci fornisci nome, cognome e dati del conto\n"
     "3️⃣  I nostri tecnici gestiscono tutto\n"
     "4️⃣  Conto finanziato pronto 🎯\n\n"
     "💰 Costo del servizio: 800€\n\n"
+    "✅ Passaggio garantito al 100%\n"
+    "Se non superiamo la challenge, rimborsiamo l’intero costo del servizio.\n\n"
     "💡 Consiglio: scegli sempre la Step 1 (fase singola)\n"
     "per un passaggio più rapido ed efficiente.\n\n"
-    "Per prenotare il servizio o maggiori informazioni:\n"
+    "Per prenotare o avere maggiori informazioni:\n"
     "💬 " + SUPP
 )
 
@@ -127,12 +126,16 @@ def main_keyboard():
 
 def software_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⬅️  Torna al menu", callback_data="menu")],
+        [InlineKeyboardButton("📚  Come funziona → PDF",       callback_data="pdf_come_funziona_sw")],
+        [InlineKeyboardButton("📋  Guida apertura conto → PDF", callback_data="pdf_conto_sw")],
+        [InlineKeyboardButton("⬅️  Torna al menu",                   callback_data="menu")],
     ])
 
 def manuale_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⬅️  Torna al menu", callback_data="menu")],
+        [InlineKeyboardButton("📚  Come funziona → PDF",       callback_data="pdf_come_funziona_man")],
+        [InlineKeyboardButton("📋  Guida apertura conto → PDF", callback_data="pdf_conto_man")],
+        [InlineKeyboardButton("⬅️  Torna al menu",                   callback_data="menu")],
     ])
 
 def prop_keyboard():
@@ -194,6 +197,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "prop_parla":
         await query.edit_message_text(PROP_PARLA, reply_markup=back_prop_keyboard(), parse_mode="HTML")
+
+    elif data in ("pdf_come_funziona_sw", "pdf_come_funziona_man",
+                  "pdf_conto_sw", "pdf_conto_man"):
+        await query.edit_message_text(PDF_IN_ARRIVO, reply_markup=back_menu_keyboard(), parse_mode="HTML")
 
 # ─────────────────────────────────────────
 #  AVVIO
