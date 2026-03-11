@@ -111,12 +111,6 @@ PROP_PARLA = (
     "💬 @SuppNexusGoldOne"
 )
 
-PDF_NON_PRONTO = (
-    "📋 La guida PDF sarà disponibile a breve!\n\n"
-    "Per informazioni intanto scrivi a:\n"
-    "💬 @SuppNexusGoldOne"
-)
-
 # ─────────────────────────────────────────
 #  TASTIERE
 # ─────────────────────────────────────────
@@ -130,14 +124,12 @@ def main_keyboard():
 
 def software_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📋  Guida apertura conto → PDF", callback_data="pdf_software")],
-        [InlineKeyboardButton("⬅️  Torna al menu",              callback_data="menu")],
+        [InlineKeyboardButton("⬅️  Torna al menu", callback_data="menu")],
     ])
 
 def manuale_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📋  Guida apertura conto → PDF", callback_data="pdf_manuale")],
-        [InlineKeyboardButton("⬅️  Torna al menu",              callback_data="menu")],
+        [InlineKeyboardButton("⬅️  Torna al menu", callback_data="menu")],
     ])
 
 def prop_keyboard():
@@ -199,9 +191,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "prop_parla":
         await query.edit_message_text(PROP_PARLA, reply_markup=back_prop_keyboard())
-
-    elif data in ("pdf_software", "pdf_manuale"):
-        await query.edit_message_text(PDF_NON_PRONTO, reply_markup=back_menu_keyboard())
 
 # ─────────────────────────────────────────
 #  AVVIO
