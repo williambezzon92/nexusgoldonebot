@@ -32,13 +32,6 @@ MANUALE_MSG = (
     "💬 " + SUPP
 )
 
-INIZIA_MSG = (
-    "🚀 <b>Comincia Ora</b>\n\n"
-    "Qui sotto trovi la guida passo per passo per aprire il tuo conto e iniziare.\n\n"
-    "Per info o per iniziare, scrivici direttamente:\n"
-    "💬 " + SUPP
-)
-
 PDF_IN_ARRIVO = (
     "📋 <b>PDF in arrivo!</b>\n\n"
     "La guida sarà disponibile a breve.\n\n"
@@ -124,21 +117,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "inizia":
         await query.edit_message_text(
-            INIZIA_MSG,
+            INIZIA_PDF_MSG,
             reply_markup=inizia_keyboard(),
             parse_mode="HTML"
         )
 
-    elif data in ("pdf_software", "pdf_manuale"):
+    elif data in ("pdf_software", "pdf_manuale", "pdf_inizia"):
         await query.edit_message_text(
             PDF_IN_ARRIVO,
-            reply_markup=back_keyboard(),
-            parse_mode="HTML"
-        )
-
-    elif data == "pdf_inizia":
-        await query.edit_message_text(
-            INIZIA_PDF_MSG,
             reply_markup=back_keyboard(),
             parse_mode="HTML"
         )
