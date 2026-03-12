@@ -17,7 +17,7 @@ WELCOME = (
 )
 
 SOFTWARE_MSG = (
-    "📊 <b>Copytrading Software</b>\n\n"
+    "📊 <b>Copytrading Software — NexusOne</b>\n\n"
     "Qui sotto trovi il PDF completo con tutte le spiegazioni su come funziona "
     "il sistema di copytrading software.\n\n"
     "Per info o per iniziare, scrivici direttamente:\n"
@@ -46,12 +46,21 @@ PDF_IN_ARRIVO = (
     "💬 " + SUPP
 )
 
+INIZIA_PDF_MSG = (
+    "🚀 <b>Comincia Ora</b>\n\n"
+    "Per prima cosa cominciamo con l'apertura del conto.\n\n"
+    "Una volta aperto il conto e verificato, scrivi al supporto per avere "
+    "il link di allacciamento alla strategia e la guida di come allacciarsi.\n\n"
+    "Per altre informazioni contattaci direttamente:\n"
+    "💬 " + SUPP
+)
+
 # ── KEYBOARDS ───────────────────────────────────────────────
 
 def main_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 Copytrading Software", callback_data="software")],
-        [InlineKeyboardButton("📈 Copytrading Manuale",  callback_data="manuale")],
+        [InlineKeyboardButton("📊 Copytrading Software — NexusOne", callback_data="software")],
+        [InlineKeyboardButton("📈 Copytrading Manuale — GoldFusion",  callback_data="manuale")],
         [InlineKeyboardButton("🚀 Comincia Ora",         callback_data="inizia")],
     ])
 
@@ -120,9 +129,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
 
-    elif data in ("pdf_software", "pdf_manuale", "pdf_inizia"):
+    elif data in ("pdf_software", "pdf_manuale"):
         await query.edit_message_text(
             PDF_IN_ARRIVO,
+            reply_markup=back_keyboard(),
+            parse_mode="HTML"
+        )
+
+    elif data == "pdf_inizia":
+        await query.edit_message_text(
+            INIZIA_PDF_MSG,
             reply_markup=back_keyboard(),
             parse_mode="HTML"
         )
