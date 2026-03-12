@@ -12,7 +12,7 @@ SUPP = '<a href="https://t.me/SuppNexusGoldOne">@SuppNexusGoldOne</a>'
 WELCOME = (
     "Benvenuto in <b>NexusGoldOne</b> ⚡\n\n"
     "Seleziona una delle opzioni qui sotto per ricevere tutte le informazioni.\n\n"
-    "Per altro contattaci pure al supporto, le risponderemo il prima possibile:\n"
+    "Per info o per iniziare, scrivici direttamente:\n"
     "💬 " + SUPP
 )
 
@@ -20,7 +20,7 @@ SOFTWARE_MSG = (
     "📊 <b>Copytrading Software</b>\n\n"
     "Qui sotto trovi il PDF completo con tutte le spiegazioni su come funziona "
     "il sistema di copytrading software.\n\n"
-    "Per altro contattaci pure al supporto, le risponderemo il prima possibile:\n"
+    "Per info o per iniziare, scrivici direttamente:\n"
     "💬 " + SUPP
 )
 
@@ -28,21 +28,21 @@ MANUALE_MSG = (
     "📈 <b>Copytrading Manuale — GoldFusion</b>\n\n"
     "Qui sotto trovi il PDF completo con tutte le spiegazioni su come funziona "
     "il trading manuale GoldFusion.\n\n"
-    "Per altro contattaci pure al supporto, le risponderemo il prima possibile:\n"
+    "Per info o per iniziare, scrivici direttamente:\n"
     "💬 " + SUPP
 )
 
 INIZIA_MSG = (
     "🚀 <b>Comincia Ora</b>\n\n"
     "Qui sotto trovi la guida passo per passo per aprire il tuo conto e iniziare.\n\n"
-    "Per altro contattaci pure al supporto, le risponderemo il prima possibile:\n"
+    "Per info o per iniziare, scrivici direttamente:\n"
     "💬 " + SUPP
 )
 
 PDF_IN_ARRIVO = (
     "📋 <b>PDF in arrivo!</b>\n\n"
     "La guida sarà disponibile a breve.\n\n"
-    "Per altro contattaci pure al supporto, le risponderemo il prima possibile:\n"
+    "Per info o per iniziare, scrivici direttamente:\n"
     "💬 " + SUPP
 )
 
