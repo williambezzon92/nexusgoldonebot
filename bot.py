@@ -7,12 +7,12 @@ logging.basicConfig(level=logging.INFO)
 TOKEN = os.environ.get("BOT_TOKEN", "8274279855:AAFIvg_3Yo21YKrkoj7oleNqD3m8m0qLmEA")
 SUPP = '<a href="https://t.me/SuppNexusGoldOne">@SuppNexusGoldOne</a>'
 
-# ── MESSAGGI ────────────────────────────────────────────
+# ── MESSAGGI ────────────────────────────────────────────────
 
 WELCOME = (
     "Benvenuto in <b>NexusGoldOne</b> ⚡\n\n"
     "Seleziona una delle opzioni qui sotto per ricevere tutte le informazioni.\n\n"
-    "Per qualsiasi domanda siamo sempre disponibili:\n"
+    "Per altro contattaci pure al supporto, le risponderemo il prima possibile:\n"
     "💬 " + SUPP
 )
 
@@ -20,7 +20,7 @@ SOFTWARE_MSG = (
     "📊 <b>Copytrading Software</b>\n\n"
     "Qui sotto trovi il PDF completo con tutte le spiegazioni su come funziona "
     "il sistema di copytrading software.\n\n"
-    "Per qualsiasi domanda o per iniziare:\n"
+    "Per altro contattaci pure al supporto, le risponderemo il prima possibile:\n"
     "💬 " + SUPP
 )
 
@@ -28,21 +28,21 @@ MANUALE_MSG = (
     "📈 <b>Copytrading Manuale — GoldFusion</b>\n\n"
     "Qui sotto trovi il PDF completo con tutte le spiegazioni su come funziona "
     "il trading manuale GoldFusion.\n\n"
-    "Per qualsiasi domanda o per iniziare:\n"
+    "Per altro contattaci pure al supporto, le risponderemo il prima possibile:\n"
     "💬 " + SUPP
 )
 
 INIZIA_MSG = (
     "🚀 <b>Comincia Ora</b>\n\n"
     "Qui sotto trovi la guida passo per passo per aprire il tuo conto e iniziare.\n\n"
-    "Per qualsiasi domanda o per iniziare subito:\n"
+    "Per altro contattaci pure al supporto, le risponderemo il prima possibile:\n"
     "💬 " + SUPP
 )
 
 PDF_IN_ARRIVO = (
     "📋 <b>PDF in arrivo!</b>\n\n"
     "La guida sarà disponibile a breve.\n\n"
-    "Nel frattempo per qualsiasi informazione:\n"
+    "Per altro contattaci pure al supporto, le risponderemo il prima possibile:\n"
     "💬 " + SUPP
 )
 
@@ -78,7 +78,7 @@ def back_keyboard():
         [InlineKeyboardButton("🔙 Torna al menu", callback_data="menu")],
     ])
 
-# ── HANDLERS ────────────────────────────────────────────────
+# ── HANDLERS ───────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -127,7 +127,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
 
-# ── MAIN ────────────────────────────────────────────────────────────────
+# ── MAIN ────────────────────────────────────────────────────
 
 def main():
     app = Application.builder().token(TOKEN).build()
