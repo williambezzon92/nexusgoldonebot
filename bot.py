@@ -43,7 +43,12 @@ INIZIA_PDF_MSG = (
     "🚀 <b>Comincia Ora</b>\n\n"
     "Per prima cosa cominciamo con l'apertura del conto.\n\n"
     "Una volta aperto il conto e verificato, scrivi al supporto per avere "
-    "il link di allacciamento alla strategia e la guida di come allacciarsi.\n\n"
+    "il link di allacciamento alla strategia e la guida di come allacciarsi."
+)
+
+DOPO_PDF_INIZIA_MSG = (
+    "📋 <b>PDF in arrivo!</b>\n\n"
+    "La guida sarà disponibile a breve.\n\n"
     "Per altre informazioni contattaci direttamente:\n"
     "💬 " + SUPP
 )
@@ -122,9 +127,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
 
-    elif data in ("pdf_software", "pdf_manuale", "pdf_inizia"):
+    elif data in ("pdf_software", "pdf_manuale"):
         await query.edit_message_text(
             PDF_IN_ARRIVO,
+            reply_markup=back_keyboard(),
+            parse_mode="HTML"
+        )
+
+    elif data == "pdf_inizia":
+        await query.edit_message_text(
+            DOPO_PDF_INIZIA_MSG,
             reply_markup=back_keyboard(),
             parse_mode="HTML"
         )
