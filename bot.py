@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TOKEN = os.environ.get("BOT_TOKEN", "8274279855:AAFIvg_3Yo21YKrkoj7oleNqD3m8m0qLmEA")
+TOKEN = os.environ.get("BOT_TOKEN", "8274279855:AFIvg_3Yo21YKrkoj7oleNqD3m8m0qLmEA")
 
 # -----------------------------------------
 #  CONFIGURAZIONE CANALE & GRUPPO REVISIONE
@@ -235,7 +235,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler, pattern="^(?!pub_|dis_)"))
     app.add_handler(MessageHandler(filters.Document.PDF, review_document))
     app.add_handler(CallbackQueryHandler(review_callback, pattern="^(pub_|dis_)"))
-    app.run_polling()
+    app.run_polling(allowed_updates=["message", "callback_query", "channel_post", "edited_message"])
 
 if __name__ == "__main__":
     main()
