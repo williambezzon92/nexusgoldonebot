@@ -1,42 +1,37 @@
 import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TOKEN = os.environ.get("BOT_TOKEN", "8274279855:AFIvg_3Yo21YKrkoj7oleNqD3m8m0qLmEA")
-
-# -----------------------------------------
-#  CONFIGURAZIONE CANALE & GRUPPO REVISIONE
-# -----------------------------------------
-REVIEW_GROUP_ID = int(os.environ.get("REVIEW_GROUP_ID", "0"))
-MERCATI_TOPIC_ID = int(os.environ.get("MERCATI_TOPIC_ID", "0"))
-CHANNEL_ID = os.environ.get("CHANNEL_ID", "@NexusGoldOne")
-pending_docs = {}
+TOKEN = os.environ.get("BOT_TOKEN", "8274279855:AAFIvg_3Yo21YKrkoj7oleNqD3m8m0qLmEA")
 
 # -----------------------------------------
 #  PATH PDF
 # -----------------------------------------
+
 PDF_DIR = os.path.dirname(__file__)
-PDF_APERTURA     = os.path.join(PDF_DIR, "2 Nexus One - Apertura conto.pdf")
-PDF_SOFTWARE     = os.path.join(PDF_DIR, "1 Nexus One - Presentazione.pdf")
-PDF_MANUALE      = os.path.join(PDF_DIR, "GoldFusion.pdf")
-PDF_VEGAFUNDED   = os.path.join(PDF_DIR, "VegaFunded.pdf")
-PDF_PROP         = os.path.join(PDF_DIR, "NexusGoldOne_PropFirm_FAQ.pdf")
-PDF_FAQ          = os.path.join(PDF_DIR, "NexusGoldOne_FAQ.pdf")
+
+PDF_APERTURA   = os.path.join(PDF_DIR, "2 Nexus One - Apertura conto.pdf")
+PDF_SOFTWARE   = os.path.join(PDF_DIR, "1 Nexus One - Presentazione.pdf")
+PDF_MANUALE    = os.path.join(PDF_DIR, "GoldFusion.pdf")
+PDF_VEGAFUNDED = os.path.join(PDF_DIR, "VegaFunded.pdf")
+PDF_PROP       = os.path.join(PDF_DIR, "NexusGoldOne_PropFirm_FAQ.pdf")
+PDF_FAQ        = os.path.join(PDF_DIR, "NexusGoldOne_FAQ.pdf")
 
 # -----------------------------------------
 #  MESSAGGI
 # -----------------------------------------
+
 WELCOME = (
     "Benvenuto in *NexusGoldOne* ⚡\n\n"
-    "Seleziona l'area che ti interessa per ricevere tutte le informazioni e la guida per iniziare U0001f447U0001f3fb"
+    "Seleziona l'area che ti interessa per ricevere tutte le informazioni e la guida per iniziare 👇🎻"
 )
 
 COPYTRADING = (
-    "Copytrading U0001f4ca\n\n"
+    "Copytrading 📊\n\n"
     "*NexusOne* — Expert Advisor che opera in automatico sull'oro (XAUUSD). "
     "Ogni operazione ha Stop Loss e Take Profit. Una volta allacciato lavora in autonomia, 24 ore su 24. "
     "Già 6 anni a mercato reale, progettato per conservare il capitale nel lungo termine.\n\n"
@@ -46,50 +41,51 @@ COPYTRADING = (
     "Trovi i PDF di presentazione di entrambe le strategie qui sotto.\n\n"
     "Per iniziare premi il pulsante qui sotto. "
     "Per qualsiasi domanda scrivici direttamente.\n\n"
-    "U0001f4ac @SuppNexusGoldOne"
+    "💬 @SuppNexusGoldOne"
 )
 
 PROP = (
-    "Prop Firm U0001f3c6\n\n"
+    "Prop Firm 🏆\n\n"
     "Vuoi operare su capitali grandi senza rischiare i tuoi soldi? "
     "Con una Prop Firm paghi solo la quota della challenge e, se la superi, ricevi un conto finanziato "
     "fino a $200.000. Puoi anche usare il nostro servizio di passaggio automatico con garanzia 100%.\n\n"
-    "U0001f39f️ Sconto 10% su VegaFunded con il codice: *GOLDFUSION*\n"
-    "U0001f449 Registrati qui: https://dashboard.vegafunded.com/portal/referral/FDSNOFFY\n\n"
+    "🎟️ Sconto 10% su VegaFunded con il codice: *GOLDFUSION*\n"
+    "👉 Registrati qui: https://dashboard.vegafunded.com/portal/referral/FDSNOFFY\n\n"
     "Nel PDF trovi tutte le informazioni e le domande frequenti.\n\n"
     "Per qualsiasi domanda scrivici direttamente.\n\n"
-    "U0001f4ac @SuppNexusGoldOne"
+    "💬 @SuppNexusGoldOne"
 )
 
 COMINCIA = (
-    "Inizia subito U0001f680\n\n"
+    "Inizia subito 🚀\n\n"
     "Ecco la guida completa per aprire il tuo conto. "
     "Una volta registrato ed effettuato il deposito, contattaci su @SuppNexusGoldOne "
     "per ricevere il link di allacciamento alla strategia.\n\n"
     "Per qualsiasi domanda scrivici direttamente.\n\n"
-    "U0001f4ac @SuppNexusGoldOne"
+    "💬 @SuppNexusGoldOne"
 )
 
 FAQ_MSG = (
     "Domande Frequenti ❓\n\n"
     "Qui sotto trovi le risposte alle domande più comuni sul Copytrading e sulla Prop Firm.\n\n"
-    "U0001f4ac @SuppNexusGoldOne"
+    "💬 @SuppNexusGoldOne"
 )
 
 # -----------------------------------------
 #  TASTIERE
 # -----------------------------------------
+
 def main_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("U0001f680  Comincia ora",      callback_data="comincia")],
-        [InlineKeyboardButton("U0001f4ca  Copytrading",       callback_data="copytrading")],
-        [InlineKeyboardButton("U0001f3c6  Prop Firm",         callback_data="prop")],
+        [​InlineKeyboardButton("🚀  Comincia ora",      callback_data="comincia")],
+        [InlineKeyboardButton("📊  Copytrading",       callback_data="copytrading")],
+        [InlineKeyboardButton("🏆  Prop Firm",         callback_data="prop")],
         [InlineKeyboardButton("❓  Domande Frequenti", callback_data="faq")],
     ])
 
 def section_keyboard(back_data):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("U0001f680  Comincia ora",    callback_data=f"comincia_from_{back_data}")],
+        [InlineKeyboardButton("🚀  Comincia ora",   callback_data=f"comincia_from_{back_data}")],
         [InlineKeyboardButton("⬅️  Torna al menu", callback_data="menu")],
     ])
 
@@ -101,6 +97,7 @@ def back_menu_keyboard():
 # -----------------------------------------
 #  HELPERS
 # -----------------------------------------
+
 async def send_comincia(query):
     await query.edit_message_text(COMINCIA, reply_markup=back_menu_keyboard(), parse_mode="Markdown")
     await query.message.reply_document(
@@ -109,8 +106,9 @@ async def send_comincia(query):
     )
 
 # -----------------------------------------
-#  HANDLERS BOT PUBBLICO
+#  HANDLERS
 # -----------------------------------------
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(WELCOME, reply_markup=main_keyboard(), parse_mode="Markdown")
 
@@ -142,100 +140,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_document(document=open(PDF_FAQ, "rb"), filename="NexusGoldOne - Domande Frequenti.pdf")
 
 # -----------------------------------------
-#  GRUPPO REVISIONE — RICEZIONE PDF
-# -----------------------------------------
-async def review_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if not msg or not msg.document:
-        return
-    if REVIEW_GROUP_ID == 0 or msg.chat_id != REVIEW_GROUP_ID:
-        return
-
-    doc = msg.document
-    sender = msg.from_user.first_name if msg.from_user else "Sconosciuto"
-
-    pending_docs[msg.message_id] = {
-        "file_id":   doc.file_id,
-        "file_name": doc.file_name or "documento.pdf",
-        "caption":   msg.caption or "",
-        "from":      sender,
-    }
-
-    logger.info(f"PDF ricevuto da {sender}: {doc.file_name} (msg_id={msg.message_id})")
-
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅  Pubblica", callback_data=f"pub_{msg.message_id}"),
-        InlineKeyboardButton("❌  Scarta",   callback_data=f"dis_{msg.message_id}"),
-    ]])
-
-    await msg.reply_text(
-        f"U0001f4c4 Nuovo documento da *{sender}*\n"
-        f"U0001f4ce `{doc.file_name}`\n\n"
-        f"Vuoi pubblicarlo su *MACRO e GEOPOLITICA*?",
-        reply_markup=keyboard,
-        parse_mode="Markdown"
-    )
-
-# -----------------------------------------
-#  GRUPPO REVISIONE — APPROVAZIONE/SCARTO
-# -----------------------------------------
-async def review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    logger.info(f"review_callback ricevuto: {data}")
-
-    if data.startswith("pub_"):
-        msg_id = int(data[4:])
-        doc_info = pending_docs.pop(msg_id, None)
-
-        if not doc_info:
-            await query.edit_message_text(
-                "⚠️ Documento non trovato.\n"
-                "Il bot potrebbe essere stato riavviato. Rimanda il PDF nel gruppo."
-            )
-            return
-
-        try:
-            thread_id = MERCATI_TOPIC_ID if MERCATI_TOPIC_ID != 0 else None
-            logger.info(f"Invio a CHANNEL_ID={CHANNEL_ID}, thread_id={thread_id}")
-
-            await context.bot.send_document(
-                chat_id=CHANNEL_ID,
-                document=doc_info["file_id"],
-                caption=doc_info["caption"] or "U0001f4ca Nuovo aggiornamento — *Macro e Geopolitica*",
-                parse_mode="Markdown",
-                message_thread_id=thread_id,
-            )
-            await query.edit_message_text(
-                f"✅ Pubblicato su MACRO e GEOPOLITICA!\nU0001f4ce `{doc_info['file_name']}`",
-                parse_mode="Markdown"
-            )
-            logger.info("Pubblicazione riuscita!")
-
-        except Exception as e:
-            logger.error(f"Errore pubblicazione: {e}")
-            await query.edit_message_text(
-                f"❌ Errore durante la pubblicazione:\n`{str(e)}`",
-                parse_mode="Markdown"
-            )
-
-    elif data.startswith("dis_"):
-        msg_id = int(data[4:])
-        pending_docs.pop(msg_id, None)
-        await query.edit_message_text("❌ Documento scartato.")
-
-# -----------------------------------------
 #  AVVIO
 # -----------------------------------------
+
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler, pattern="^(?!pub_|dis_)"))
-    app.add_handler(MessageHandler(filters.Document.PDF, review_document))
-    app.add_handler(CallbackQueryHandler(review_callback, pattern="^(pub_|dis_)"))
-    app.run_polling(allowed_updates=["message", "callback_query", "channel_post", "edited_message"])
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.run_polling(allowed_updates=["message", "callback_query"])
 
 if __name__ == "__main__":
     main()
