@@ -342,7 +342,7 @@ else:
         f"📊 *NexusGoldOne — Report Macro & Geopolitica*\n\n"
         f"Analisi settimanale: geopolitica globale, banche centrali e price action sull'oro.\n"
         f"{WEEK_LABEL}\n\n"
-        f"Buona lettura e buona settimana\\! ⚡\n\n"
+        f"Buona lettura e buona settimana! ⚡\n\n"
         f"_NexusGoldOne_"
     )
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
@@ -351,7 +351,7 @@ else:
             "chat_id": CHANNEL_ID,
             "message_thread_id": TOPIC_ID,
             "caption": caption,
-            "parse_mode": "MarkdownV2",
+            "parse_mode": "Markdown",
         }, files={"document": (FILENAME, f, "application/pdf")}, timeout=60)
 
     result = resp.json()
