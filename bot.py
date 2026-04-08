@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 TOKEN      = os.environ.get("BOT_TOKEN", "8274279855:AAFIvg_3Yo21YKrkoj7oleNqD3m8m0qLmEA")
 
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "@NexusGoldOne")
-MACRO_TOPIC_ID = 2  # Topic "Macro e Geopolitica" nel canale
+MACRO_TOPIC_ID = 2
 
 PDF_DIR = os.path.dirname(__file__)
 
@@ -35,9 +35,8 @@ WELCOME = (
 
 GUIDA = (
     "Guida per iniziare 🚀\n\n"
-    "Ecco la guida completa per aprire il tuo conto. "
-    "Una volta registrato ed effettuato il deposito, contattaci su @SuppNexusGoldOne "
-    "per ricevere il link di allacciamento alla strategia.\n\n"
+    "Ecco la guida completa per aprire il tuo conto. Una volta aperto il conto ed eseguito il deposito, "
+    "contattaci su @SuppNexusGoldOne per ricevere il link di allacciamento con la guida.\n\n"
     "Per qualsiasi domanda scrivici direttamente.\n\n"
     "💬 @SuppNexusGoldOne"
 )
@@ -51,7 +50,7 @@ COPYTRADING = (
     "Ogni operazione viene aperta con Stop Loss e Take Profit, in modalità intraday e multiday, "
     "e viene replicata automaticamente sul tuo conto.\n\n"
     "Trovi i PDF di presentazione di entrambe le strategie qui sotto.\n\n"
-    "Per qualsiasi domanda scrivici direttamente.\n\n"
+    "Per qualsiasi domanda trovi tutto nella sezione Domande Frequenti, oppure scrivici direttamente al supporto.\n\n"
     "💬 @SuppNexusGoldOne"
 )
 
@@ -152,10 +151,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             document=open(PDF_APERTURA, "rb"),
             filename="NexusGoldOne - Apertura conto.pdf"
         )
-        await query.message.reply_text(
-            "✅ Una volta aperto il conto ed eseguito il deposito, contatta il supporto per ricevere il link di allacciamento con la guida.\n\n"
-            "💬 @SuppNexusGoldOne"
-        )
 
     elif data == "copytrading":
         await query.edit_message_text(COPYTRADING, reply_markup=back_menu_keyboard(), parse_mode="Markdown")
@@ -195,7 +190,6 @@ def main():
         days=(0,),
         name="weekly_macro_report"
     )
-    logger.info("Job 'weekly_macro_report' schedulato — ogni lunedì alle 08:00 (Roma)")
 
     app.run_polling(allowed_updates=["message", "callback_query"])
 
