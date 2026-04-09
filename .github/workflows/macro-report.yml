@@ -20,8 +20,7 @@ jobs:
 
       - name: Installa dipendenze
         run: |
-          pip install reportlab requests yfinance
-
+          pip install reportlab requests yfinance anthropic feedparser
       - name: Genera PDF e invia su Telegram
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
