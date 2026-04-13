@@ -8,23 +8,22 @@ on:
 jobs:
   genera-e-invia:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Installa dipendenze
         run: |
-          pip install reportlab requests yfinance anthropic feedparser
+          pip install reportlab requests yfinance feedparser anthropic
       - name: Genera PDF e invia su Telegram
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           TOPIC_ID: ${{ secrets.TOPIC_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REVIEW_GROUP_ID: ${{ secrets.REVIEW_GROUP_ID }}
         run: |
           python generate_macro_auto.py
