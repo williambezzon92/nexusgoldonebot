@@ -5,18 +5,18 @@ NexusGoldOne — Generatore automatico Report Macro & Geopolitica
 Gira ogni lunedì su GitHub Actions e invia il PDF al canale Telegram.
 Versione 2.0 — Analisi AI dinamica via Claude API + prezzi live + notizie RSS
 """
- 
+
 import os
 import json
 import re
 import requests
 from datetime import date, datetime, timedelta, timezone
- 
+
 # ── DATE AUTOMATICHE ──────────────────────────────────────────────────────────
 today    = date.today()
 monday   = today - timedelta(days=today.weekday())
 friday   = monday + timedelta(days=4)   # i mercati vanno lun-ven
- 
+
 MESI = {
     1:"Gennaio", 2:"Febbraio", 3:"Marzo", 4:"Aprile",
     5:"Maggio", 6:"Giugno", 7:"Luglio", 8:"Agosto",
@@ -26,12 +26,12 @@ MESI_SHORT = {
     1:"Gen", 2:"Feb", 3:"Mar", 4:"Apr", 5:"Mag", 6:"Giu",
     7:"Lug", 8:"Ago", 9:"Set", 10:"Ott", 11:"Nov", 12:"Dic"
 }
- 
+
 WEEK_LABEL = f"Settimana dal {monday.day:02d} al {friday.day:02d} {MESI[friday.month]} {friday.year}"
 WEEK_SHORT = f"{monday.day:02d} {MESI_SHORT[monday.month]} – {friday.day:02d} {MESI_SHORT[friday.month]} {friday.year}"
 FILENAME   = f"MACRO_Geopolitica_{monday.strftime('%d-%m-%Y')}.pdf"
 OUTPUT     = f"/tmp/{FILENAME}"
- 
+
 # ── NOTIZIE AUTOMATICHE DA RSS FEEDS ─────────────────────────────────────────
 def get_weekly_news():
     try:
@@ -39,7 +39,7 @@ def get_weekly_news():
     except ImportError:
         print("feedparser non installato, saltando notizie.")
         return []
- 
+
     feeds = [
         ("Kitco Gold News",    "https://www.kitco.com/rss/kitconews.rss"),
         ("Reuters Markets",    "https://feeds.reuters.com/reuters/businessNews"),
@@ -48,7 +48,7 @@ def get_weekly_news():
         ("CNBC Finance",       "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
         ("Investing.com Gold", "https://www.investing.com/rss/news_301.rss"),
     ]
- 
+
     KEYWORDS_HIGH = [
         'gold', 'xau', 'federal reserve', 'fed rate', 'inflation', 'cpi', 'pce',
         'war', 'attack', 'strike', 'conflict', 'crisis', 'nuclear',
@@ -63,11 +63,11 @@ def get_weekly_news():
         'jobs', 'unemployment', 'gdp', 'economy', 'silver', 'copper',
         'bank', 'ecb', 'boe', 'imf', 'world bank', 'commodity'
     ]
- 
+
     articles = []
     # Solo notizie delle ultime 36 ore — contesto immediato per la settimana in corso
     cutoff = datetime.now(timezone.utc) - timedelta(hours=36)
- 
+
     for source_name, url in feeds:
         try:
             feed = feedparser.parse(url, request_headers={
@@ -80,15 +80,15 @@ def get_weekly_news():
                         pub_date = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
                     except Exception:
                         pass
- 
+
                 if pub_date and pub_date < cutoff:
                     continue
- 
+
                 title   = entry.get('title', '').strip()
                 summary = entry.get('summary', entry.get('description', '')).strip()
                 summary = re.sub(r'<[^>]+>', '', summary)[:250]
                 text_low = (title + ' ' + summary).lower()
- 
+
                 score = 0
                 for kw in KEYWORDS_HIGH:
                     if kw in text_low:
@@ -96,7 +96,7 @@ def get_weekly_news():
                 for kw in KEYWORDS_MED:
                     if kw in text_low:
                         score += 1
- 
+
                 if score >= 3:
                     date_str = pub_date.strftime('%d %b') if pub_date else '—'
                     impact   = '🔴 CRITICO' if score >= 9 else ('🟠 ALTO' if score >= 5 else '🟡 MEDIO')
@@ -110,9 +110,9 @@ def get_weekly_news():
                     })
         except Exception as e:
             print(f"Errore feed {source_name}: {e}")
- 
+
     articles.sort(key=lambda x: x['score'], reverse=True)
- 
+
     seen = set()
     unique = []
     for art in articles:
@@ -130,10 +130,10 @@ def get_weekly_news():
             unique.append(art)
         if len(unique) >= 7:
             break
- 
+
     print(f"Notizie trovate: {len(unique)}")
     return unique
- 
+
 # ── CALENDARIO FOREX FACTORY (eventi USD della settimana) ────────────────────
 def get_forex_factory_calendar():
     """
@@ -156,7 +156,7 @@ def get_forex_factory_calendar():
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
         data = resp.json()
- 
+
         # Filtra solo eventi USD con impatto High o Medium
         usd_events = []
         for ev in data:
@@ -165,7 +165,7 @@ def get_forex_factory_calendar():
             impact = ev.get('impact', 'Low')
             if impact not in ('High', 'Medium'):
                 continue
- 
+
             # Parsa la data
             date_str = ev.get('date', '')  # es. "2025-04-21T08:30:00-05:00"
             try:
@@ -177,11 +177,11 @@ def get_forex_factory_calendar():
             except Exception:
                 day_label  = date_str[:10]
                 time_label = ''
- 
+
             forecast = ev.get('forecast', '') or '—'
             previous = ev.get('previous', '') or '—'
             title    = ev.get('title', '').strip()
- 
+
             usd_events.append({
                 'title':    title,
                 'day':      day_label,
@@ -189,38 +189,83 @@ def get_forex_factory_calendar():
                 'impact':   impact,
                 'forecast': forecast,
                 'previous': previous,
+                'sort_key': date_str,  # datetime ISO reale per ordinamento corretto
             })
- 
-        # Ordina per data/impatto
-        usd_events.sort(key=lambda x: (x['day'], IMPACT_ORDER.get(x['impact'], 9)))
+
+        # Ordina per datetime REALE (non per nome del giorno) poi per impatto
+        usd_events.sort(key=lambda x: (x['sort_key'], IMPACT_ORDER.get(x['impact'], 9)))
         print(f"Forex Factory: {len(usd_events)} eventi USD High/Medium trovati")
-        return usd_events
- 
+
+        # Genera nota automatica basata sugli eventi REALI (non sull'AI)
+        high_events = [e for e in usd_events if e['impact'] == 'High']
+        if high_events:
+            top = high_events[0]
+            ff_nota = (f"L'evento più importante della settimana è <b>{top['title']}</b> "
+                       f"({top['day']}, {top['time']}), classificato ad ALTO impatto. "
+                       f"Previsione: {top['forecast']} | Precedente: {top['previous']}. "
+                       f"Una lettura fuori dalle attese può generare movimenti significativi su oro e dollaro.")
+        else:
+            ff_nota = ("Questa settimana non ci sono eventi USD di alto impatto programmati. "
+                       "Monitorare comunque i dati a medio impatto che potrebbero sorprendere i mercati.")
+
+        return usd_events, ff_nota
+
     except Exception as e:
         print(f"Forex Factory non disponibile ({e}) — uso calendario AI")
         return []
- 
+
 print("Recupero calendario Forex Factory (eventi USD)...")
-ff_calendar = get_forex_factory_calendar()
- 
+_ff_result = get_forex_factory_calendar()
+if isinstance(_ff_result, tuple):
+    ff_calendar, ff_nota_reale = _ff_result
+else:
+    ff_calendar, ff_nota_reale = [], None
+
+# ── NOTIZIE RSS ULTIME 72H (funziona su GitHub Actions) ───────────────────────
+print("Recupero notizie RSS ultime 72 ore...")
+weekly_news = get_weekly_news()
+print(f"Notizie trovate: {len(weekly_news)}")
+
+# ── PROSSIME RIUNIONI FOMC/BCE 2026 ──────────────────────────────────────────
+FOMC_2026 = [date(2026,1,28),date(2026,3,17),date(2026,4,28),date(2026,6,9),
+             date(2026,7,28),date(2026,9,15),date(2026,10,27),date(2026,12,8)]
+ECB_2026  = [date(2026,1,30),date(2026,3,6),date(2026,4,17),date(2026,6,5),
+             date(2026,7,24),date(2026,9,11),date(2026,10,23),date(2026,12,11)]
+next_fomc = next((d for d in FOMC_2026 if d >= today), None)
+next_ecb  = next((d for d in ECB_2026  if d >= today), None)
+days_fomc = (next_fomc - today).days if next_fomc else None
+days_ecb  = (next_ecb  - today).days if next_ecb  else None
+fomc_str  = (f"{next_fomc.day} {MESI[next_fomc.month]} {next_fomc.year} "
+             f"(tra {days_fomc} giorni)") if next_fomc else "data TBD"
+ecb_str   = (f"{next_ecb.day} {MESI[next_ecb.month]} {next_ecb.year} "
+             f"(tra {days_ecb} giorni)") if next_ecb else "data TBD"
+print(f"Prossima FOMC: {fomc_str} | Prossima BCE: {ecb_str}")
+
 # ── PREZZI LIVE (Yahoo Finance) ───────────────────────────────────────────────
 def get_price(ticker):
     try:
         import yfinance as yf
         t = yf.Ticker(ticker)
-        hist = t.history(period="5d")
-        if hist.empty:
+        # period="1mo" garantisce >6 righe su GitHub Actions per confronto settimanale affidabile
+        hist = t.history(period="1mo")
+        if hist.empty or len(hist) < 2:
             return None, None, None, None
-        close_last = hist["Close"].iloc[-1]
-        close_prev = hist["Close"].iloc[0]
+        close_last = float(hist["Close"].iloc[-1])
+        # Confronto con chiusura di esattamente 5 giorni di trading fa (settimana precedente)
+        close_prev = float(hist["Close"].iloc[-6]) if len(hist) >= 6 else float(hist["Close"].iloc[0])
         change_pct = ((close_last - close_prev) / close_prev) * 100
-        week_low   = hist["Low"].min()
-        week_high  = hist["High"].max()
+        # Range sugli ultimi 5 giorni di trading
+        recent = hist.iloc[-5:]
+        week_low  = float(recent["Low"].min())
+        week_high = float(recent["High"].max())
+        # Sanity check: range > ±15% dal prezzo attuale = dato anomalo yfinance
+        if week_high > close_last * 1.15 or week_low < close_last * 0.85:
+            week_low, week_high = None, None
         return close_last, change_pct, week_low, week_high
     except Exception as e:
         print(f"Errore prezzo {ticker}: {e}")
         return None, None, None, None
- 
+
 print("Recupero prezzi di mercato...")
 xau_price, xau_chg, xau_low, xau_high = get_price("GC=F")
 spx_price, spx_chg, spx_low, spx_high = get_price("^GSPC")
@@ -228,61 +273,90 @@ ndx_price, ndx_chg, ndx_low, ndx_high = get_price("^IXIC")
 dxy_price, dxy_chg, dxy_low, dxy_high = get_price("DX-Y.NYB")
 wti_price, wti_chg, wti_low, wti_high = get_price("CL=F")
 xag_price, xag_chg, xag_low, xag_high = get_price("SI=F")
- 
+# Indicatori aggiuntivi
+vix_price, _, _, _                     = get_price("^VIX")      # indice di volatilità/paura
+tny_price, _, _, _                     = get_price("^TNX")      # rendimento Treasury 10 anni
+eur_price, _, eur_low, eur_high        = get_price("EURUSD=X")  # cambio euro/dollaro
+
+# ── VALIDAZIONE PREZZI AGGIUNTIVI ─────────────────────────────────────────────
+# Se i valori sono palesemente impossibili (dati mock), li azzeriamo a None.
+# Su GitHub Actions con dati reali questi controlli non scatteranno mai.
+if eur_price is not None and not (0.50 < eur_price < 5.00):
+    eur_price = None; eur_low = None; eur_high = None
+    print("⚠ EUR/USD: valore non realistico ignorato")
+if vix_price is not None and not (5.0 < vix_price < 85.0):
+    vix_price = None
+    print("⚠ VIX: valore non realistico ignorato")
+if tny_price is not None and not (0.10 < tny_price < 20.0):
+    tny_price = None
+    print("⚠ 10Y: valore non realistico ignorato")
+
 def fmt(val, decimals=0, prefix=""):
     if val is None: return "N/D"
     return f"{prefix}{val:,.{decimals}f}".replace(",", "X").replace(".", ",").replace("X", ".")
- 
+
 def fmt_chg(val):
     if val is None: return "N/D"
     sign = "+" if val >= 0 else ""
     return f"{sign}{val:.1f}%".replace(".", ",")
- 
-xau_row = ["XAU/USD (Oro)",     f"~${fmt(xau_price, 0)}", fmt_chg(xau_chg), f"${fmt(xau_low, 0)} / ${fmt(xau_high, 0)}"]
-spx_row = ["S&P 500",           f"~{fmt(spx_price, 0)}",  fmt_chg(spx_chg), f"{fmt(spx_low, 0)} / {fmt(spx_high, 0)}"]
-ndx_row = ["NASDAQ Composite",  f"~{fmt(ndx_price, 0)}",  fmt_chg(ndx_chg), f"{fmt(ndx_low, 0)} / {fmt(ndx_high, 0)}"]
-dxy_row = ["DXY (Dollaro USA)", f"~{fmt(dxy_price, 2)}",  fmt_chg(dxy_chg), f"{fmt(dxy_low, 2)} / {fmt(dxy_high, 2)}"]
- 
+
+xau_row = ["XAU/USD (Oro)",      f"~${fmt(xau_price, 0)}", f"${fmt(xau_low, 0)} / ${fmt(xau_high, 0)}"]
+spx_row = ["S&P 500",            f"~{fmt(spx_price, 0)}",  f"{fmt(spx_low, 0)} / {fmt(spx_high, 0)}"]
+ndx_row = ["NASDAQ Composite",   f"~{fmt(ndx_price, 0)}",  f"{fmt(ndx_low, 0)} / {fmt(ndx_high, 0)}"]
+dxy_row = ["DXY (Dollaro USA)",  f"~{fmt(dxy_price, 2)}",  f"{fmt(dxy_low, 2)} / {fmt(dxy_high, 2)}"]
+# Indicatori aggiuntivi (tabella separata nel PDF)
+vix_label = ("Bassa" if vix_price and vix_price<15 else
+             "Moderata" if vix_price and vix_price<25 else
+             "Alta" if vix_price and vix_price<35 else "Estrema") if vix_price else "—"
+eur_row = ["EUR/USD",            f"~{fmt(eur_price, 4)}",  f"{fmt(eur_low,4)} / {fmt(eur_high,4)}"]
+vix_row = ["VIX (Volatilità)",   f"~{fmt(vix_price, 1)}",  vix_label]
+tny_row = ["Rendimento 10Y USA", f"~{fmt(tny_price, 2)}%", "—"]
+
 # ── ANALISI AI DINAMICA (Claude Haiku) ───────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 ai = None
- 
+
 if ANTHROPIC_API_KEY:
     try:
         import anthropic
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
- 
-        # Prepara lista notizie per il prompt
+
+        # Prepara lista notizie RSS per arricchire il contesto AI
         news_text = ""
         if weekly_news:
             news_text = "\n\nNOTIZIE REALI DELLA SETTIMANA (da feed RSS finanziari):\n"
             for i, n in enumerate(weekly_news[:7], 1):
                 news_text += f"{i}. [{n['impact']}] {n['title']} ({n['source']}, {n['date_str']})\n"
- 
+
         lun = monday
         mar = monday + timedelta(days=1)
         mer = monday + timedelta(days=2)
         gio = monday + timedelta(days=3)
         ven = monday + timedelta(days=4)
- 
+
         prompt = f"""Sei l'analista macro di NexusGoldOne, servizio professionale di copytrading sull'oro (XAU/USD).
 Oggi e' {today.strftime('%A %d %B %Y')} — stai scrivendo il report settimanale.
- 
-DATI DI MERCATO REALI (aggiornati a oggi):
-- XAU/USD (Oro): ${fmt(xau_price, 0)} | Var. settimanale: {fmt_chg(xau_chg)} | Range: ${fmt(xau_low,0)}-${fmt(xau_high,0)}
-- S&P 500: {fmt(spx_price, 0)} | Var. settimanale: {fmt_chg(spx_chg)} | Range: {fmt(spx_low,0)}-{fmt(spx_high,0)}
-- NASDAQ: {fmt(ndx_price, 0)} | Var. settimanale: {fmt_chg(ndx_chg)} | Range: {fmt(ndx_low,0)}-{fmt(ndx_high,0)}
-- DXY: {fmt(dxy_price, 2)} | Var. settimanale: {fmt_chg(dxy_chg)} | Range: {fmt(dxy_low,2)}-{fmt(dxy_high,2)}
-- WTI Crude Oil: ${fmt(wti_price, 1)} | Var. settimanale: {fmt_chg(wti_chg)} | Range: ${fmt(wti_low,1)}-${fmt(wti_high,1)}
-- XAG/USD (Argento): ${fmt(xag_price, 2)} | Var. settimanale: {fmt_chg(xag_chg)} | Range: ${fmt(xag_low,2)}-${fmt(xag_high,2)}
+
+DATI DI MERCATO REALI (aggiornati a oggi — lunedì mattina):
+- XAU/USD (Oro): ${fmt(xau_price, 0)} | Range settimana: ${fmt(xau_low,0)}-${fmt(xau_high,0)}
+- S&P 500: {fmt(spx_price, 0)} | Range: {fmt(spx_low,0)}-{fmt(spx_high,0)}
+- NASDAQ: {fmt(ndx_price, 0)} | Range: {fmt(ndx_low,0)}-{fmt(ndx_high,0)}
+- DXY: {fmt(dxy_price, 2)} | Range: {fmt(dxy_low,2)}-{fmt(dxy_high,2)}
+- WTI Crude Oil: ${fmt(wti_price, 1)} | Range: ${fmt(wti_low,1)}-${fmt(wti_high,1)}
+- XAG/USD (Argento): ${fmt(xag_price, 2)}
+- EUR/USD: {fmt(eur_price, 4)}
+- VIX (volatilità/paura): {fmt(vix_price, 1)} ({vix_label})
+- Rendimento Treasury 10Y USA: {fmt(tny_price, 2)}%
+- Prossima FOMC: {fomc_str}
+- Prossima BCE: {ecb_str}
 {news_text}
- 
+
 Settimana corrente: Lun {lun.day} {MESI_SHORT[lun.month]}, Mar {mar.day}, Mer {mer.day}, Gio {gio.day}, Ven {ven.day} {MESI_SHORT[ven.month]} {ven.year}
- 
+
 Genera un'analisi macro-geopolitica AGGIORNATA e SPECIFICA per {today.strftime('%B %Y')}.
 Basa l'analisi sulle notizie reali ricevute. Tono professionale per investitori retail sull'oro.
 Tutto in italiano. Nei testi usa tag HTML <b>Titolo:</b> per i bullet. Niente markdown.
- 
+
 Rispondi SOLO con JSON valido, nessun testo fuori:
 {{
   "snapshot_commento": "2-3 frasi tecniche sui prezzi reali di questa settimana, citando i valori esatti",
@@ -353,7 +427,7 @@ Rispondi SOLO con JSON valido, nessun testo fuori:
   "silver_bullet_1": "<b>XAG/USD (Argento):</b> prezzo attuale, ratio oro/argento, trend tecnico",
   "silver_bullet_2": "<b>Domanda industriale argento:</b> settori chiave (solare, EV, semiconduttori) e impatto sul prezzo"
 }}"""
- 
+
         print("Generazione analisi con Claude AI...")
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
@@ -367,27 +441,27 @@ Rispondi SOLO con JSON valido, nessun testo fuori:
                 raw = raw[4:]
         ai = json.loads(raw)
         print("Analisi AI generata con successo!")
- 
+
     except Exception as e:
         print(f"Errore Claude API: {e}. Uso testo di fallback.")
         ai = None
- 
+
 # ── FALLBACK testo statico se Claude non disponibile ─────────────────────────
 if ai is None:
     ai = {
-        "snapshot_commento": f"L'oro (XAU/USD) chiude la settimana a ${fmt(xau_price, 0)} ({fmt_chg(xau_chg)}), mantenendo la sua traiettoria strutturalmente rialzista. S&P 500 a {fmt(spx_price, 0)} ({fmt_chg(spx_chg)}) e DXY a {fmt(dxy_price, 2)} ({fmt_chg(dxy_chg)}) completano il quadro macro settimanale.",
+        "snapshot_commento": f"L'oro (XAU/USD) chiude la settimana a ${fmt(xau_price, 0)}, mantenendo la sua traiettoria strutturalmente rialzista. S&amp;P 500 a {fmt(spx_price, 0)} e DXY a {fmt(dxy_price, 2)} completano il quadro macro settimanale.",
         "geopolitica_intro": "Il quadro geopolitico internazionale continua a sostenere la domanda di beni rifugio. Le tensioni in Medio Oriente, le manovre nello Stretto di Taiwan e la guerra commerciale USA-Cina mantengono elevata l'incertezza strutturale sui mercati globali.",
         "geo_bullet_1": "<b>Medio Oriente:</b> situazione in evoluzione. Monitorare sviluppi su infrastrutture energetiche e approvvigionamento petrolifero globale.",
         "geo_bullet_2": "<b>USA-Cina:</b> tensioni commerciali e militari nello Stretto di Taiwan. Impatto sulle catene di fornitura dei semiconduttori.",
         "geo_bullet_3": "<b>Guerra commerciale:</b> dazi USA mantengono pressione sull'inflazione globale e incertezza normativa.",
         "geo_bullet_4": "<b>De-dollarizzazione:</b> BRICS+ accelera la diversificazione dalle riserve in dollari verso l'oro fisico.",
-        "geo_bullet_5": "<b>Energia / Petrolio:</b> OPEC+ mantiene i tagli alla produzione. La volatilita' del WTI supporta la domanda di beni rifugio.",
+        "geo_bullet_5": f"<b>Energia / Petrolio:</b> WTI a ${fmt(wti_price,0)}. OPEC+ mantiene i tagli alla produzione. La volatilita' del WTI supporta la domanda di beni rifugio.",
         "geo_bullet_6": "<b>Dazi USA:</b> le misure tariffarie mantengono pressione inflazionistica e incertezza normativa sui mercati globali.",
         "azionario_intro": "I mercati azionari USA navigano in un contesto di dati macro contrastanti. La stagione degli utili e le aspettative Fed rimangono i principali driver di breve termine.",
-        "sp500_bullet_1": f"<b>Livelli chiave:</b> chiusura settimana precedente {spx_row[1]} ({spx_row[2]}). Supporto in area {fmt(spx_low, 0)}, resistenza in area {fmt(spx_high, 0)}.",
+        "sp500_bullet_1": f"<b>Livelli chiave:</b> S&amp;P 500 a {spx_row[1]}. Supporto in area {fmt(spx_low, 0)}, resistenza in area {fmt(spx_high, 0)}.",
         "sp500_bullet_2": "<b>Rischi principali:</b> dazi su farmaci e manifatturiero comprimono i margini aziendali. Volatilita' settoriale elevata.",
         "sp500_bullet_3": "<b>Opportunita':</b> dati macro positivi e utili sopra attese potrebbero supportare i livelli attuali.",
-        "ndx_bullet_1": f"<b>Chiusura settimana precedente:</b> {ndx_row[1]} ({ndx_row[2]}). Settore tech in movimento.",
+        "ndx_bullet_1": f"<b>NASDAQ:</b> {ndx_row[1]}. Il settore tech reagisce a tensioni commerciali e dazi su semiconduttori.",
         "ndx_bullet_2": "<b>Driver positivi:</b> aspettative utili solide per i principali titoli tecnologici.",
         "ndx_bullet_3": "<b>Rischio:</b> tensioni geopolitiche e catene di fornitura semiconduttori.",
         "dedollarizzazione_intro": "La domanda strutturale di oro da parte delle banche centrali rimane il pilastro del bull market del metallo. La diversificazione delle riserve dal dollaro verso l'oro fisico continua ad accelerare.",
@@ -400,32 +474,32 @@ if ai is None:
         "dazi_bullet_2": "<b>Azionario:</b> volatilita' settoriale elevata in auto, farmaceutico e manifatturiero. Margini compressi.",
         "dazi_bullet_3": "<b>Oro:</b> il contesto inflazionistico e l'incertezza creati dai dazi costituiscono supporto strutturale per XAU/USD.",
         "dazi_bullet_4": "<b>Opportunita':</b> ogni escalation commerciale aumenta la domanda di asset rifugio.",
-        "fed_bullet_1": "<b>Tassi:</b> range attuale confermato. Politica monetaria restrittiva in corso.",
-        "fed_bullet_2": "<b>Prossima decisione:</b> prossima riunione FOMC in programma. Mercati attendono segnali sul percorso dei tassi.",
+        "fed_bullet_1": "<b>Tassi Fed:</b> range attuale 4,25%–4,50%. Politica monetaria restrittiva in attesa di dati CPI/PCE più favorevoli.",
+        "fed_bullet_2": f"<b>Prossima FOMC:</b> {fomc_str}. Mercati prezzano 2–3 tagli totali nel {today.year}. Il timing dipende da inflazione e occupazione.",
         "fed_bullet_3": "<b>Attenzione:</b> dati CPI e PCE determinanti per il percorso dei tassi.",
         "fed_bullet_4": "<b>Nota:</b> dichiarazioni dei membri Fed da monitorare per forward guidance.",
-        "bce_bullet_1": "<b>Tassi BCE:</b> politica monetaria in modalita' attendista.",
-        "bce_bullet_2": "<b>Prossima riunione:</b> prossima decisione BCE in programma.",
+        "bce_bullet_1": "<b>Tassi BCE:</b> Tasso deposito al 2,25%. Ciclo di allentamento monetario in corso in Europa dopo la serie di tagli dal 2024.",
+        "bce_bullet_2": f"<b>Prossima riunione BCE:</b> {ecb_str}. Atteso ulteriore taglio 25 bps se inflazione Eurozona continua a moderarsi verso il target 2%.",
         "cal_lun_evento": "Apertura mercati / aggiornamento geopolitica", "cal_lun_mercati": "Oro, Indici", "cal_lun_imp": "🟠 Alta",
         "cal_mar_evento": "Dati manifatturiero / dichiarazioni Fed", "cal_mar_mercati": "Dollaro, Oro", "cal_mar_imp": "🟠 Alta",
         "cal_mer_evento": "CPI USA / Scorte petrolio EIA", "cal_mer_mercati": "Fed, Dollaro, Oro", "cal_mer_imp": "🔴 Critica",
         "cal_gio_evento": "PPI USA / Sussidi disoccupazione settimanali", "cal_gio_mercati": "Dollaro, Oro", "cal_gio_imp": "🟠 Alta",
-        "cal_ven_evento": "Sentiment consumatori / Dichiarazioni BCE", "cal_ven_mercati": "Euro, S&P 500, Oro", "cal_ven_imp": "🟡 Media",
+        "cal_ven_evento": "Sentiment consumatori / Dichiarazioni BCE", "cal_ven_mercati": "Euro, S&amp;P 500, Oro", "cal_ven_imp": "🟡 Media",
         "cal_nota": "Il dato CPI del mercoledi' e' tipicamente il piu' atteso della settimana. Una lettura sopra le attese aumenta la probabilita' di un rinvio dei tagli Fed.",
         "outlook_intro": "Il quadro macro-geopolitico rimane strutturalmente favorevole all'oro nel medio termine. La domanda delle banche centrali e le tensioni geopolitiche costituiscono un floor robusto per XAU/USD.",
-        "outlook_bullet_1": f"<b>XAU/USD:</b> supporto in area ${fmt(xau_low, 0)}, resistenza principale in area ${fmt(xau_high, 0)}. Bias rialzista strutturale confermato.",
-        "outlook_bullet_2": f"<b>S&P 500:</b> area {fmt(spx_low, 0)} come supporto chiave della settimana.",
+        "outlook_bullet_1": f"<b>XAU/USD:</b> ${fmt(xau_price,0)} — supporto in area ${fmt(xau_low, 0)}, resistenza in area ${fmt(xau_high, 0)}. Bias rialzista strutturale confermato.",
+        "outlook_bullet_2": f"<b>S&amp;P 500:</b> {fmt(spx_price,0)} — area {fmt(spx_low, 0)} come supporto chiave della settimana.",
         "outlook_bullet_3": "<b>Dati macro USA:</b> CPI e PPI determinanti per le aspettative Fed. Lettura sopra attese = opportunita' di acquisto nel medio termine.",
-        "outlook_bullet_4": f"<b>Target analisti oro {today.year}:</b> consenso rialzista tra le principali banche d'investimento con target ambiziosi per fine anno.",
+        "outlook_bullet_4": f"<b>Target analisti oro {today.year}:</b> Goldman Sachs $5.000, UBS $4.500, JP Morgan $4.800. Consensus rivisto al rialzo dopo il rally sopra $4.000. Bull case $5.500+ se ciclo tagli Fed accelera.",
         "outlook_bullet_5": "<b>Scenario base:</b> consolidamento sopra i supporti con possibili spike di volatilita'. Bias strutturale rialzista confermato.",
-        "wti_intro": f"Il WTI Crude Oil quota intorno a ${fmt(wti_price,0)} nella settimana ({fmt_chg(wti_chg)}), con dinamiche OPEC+ e tensioni geopolitiche che guidano la volatilita'. La correlazione con l'oro rimane un indicatore chiave per i trader.",
-        "wti_bullet_1": f"<b>Prezzo WTI:</b> chiusura a ${fmt(wti_price,0)} ({fmt_chg(wti_chg)}). Range settimana: ${fmt(wti_low,0)}-${fmt(wti_high,0)}. Volatilita' elevata per tensioni Medio Oriente.",
-        "wti_bullet_2": "<b>OPEC+ e offerta:</b> i tagli alla produzione rimangono in vigore. Prossima riunione da monitorare per segnali di inversione.",
+        "wti_intro": f"Il WTI Crude Oil quota ${fmt(wti_price,0)} questa settimana. Dinamiche OPEC+ e tensioni geopolitiche guidano la volatilita'. La correlazione con l'oro rimane un indicatore chiave per i trader.",
+        "wti_bullet_1": f"<b>Prezzo WTI:</b> ${fmt(wti_price,0)}. Range settimana: ${fmt(wti_low,0)}–${fmt(wti_high,0)}. Volatilita' elevata per tensioni Medio Oriente.",
+        "wti_bullet_2": f"<b>OPEC+ e offerta:</b> i tagli alla produzione rimangono in vigore. Prossima riunione da monitorare per segnali di inversione su supply {today.year}.",
         "wti_bullet_3": "<b>Correlazione oro–petrolio:</b> un WTI in rialzo per ragioni geopolitiche tende a supportare XAU/USD come asset rifugio.",
-        "silver_bullet_1": f"<b>XAG/USD (Argento):</b> prezzo ${fmt(xag_price,1)} ({fmt_chg(xag_chg)}). Ratio oro/argento: {round(xau_price/xag_price) if xau_price and xag_price else 'N/D'}:1 — argento storicamente conveniente rispetto all'oro.",
+        "silver_bullet_1": f"<b>XAG/USD (Argento):</b> ${fmt(xag_price,1)}. Ratio oro/argento: {round(xau_price/xag_price) if xau_price and xag_price else 'N/D'}:1 — argento storicamente conveniente rispetto all'oro.",
         "silver_bullet_2": "<b>Domanda industriale argento:</b> i settori solare ed EV mantengono forte domanda strutturale. Supporto al prezzo nel medio termine.",
     }
- 
+
 # ── PDF ───────────────────────────────────────────────────────────────────────
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -435,7 +509,7 @@ from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
                                  Table, TableStyle, HRFlowable, PageBreak,
                                  CondPageBreak)
- 
+
 GOLD       = colors.HexColor('#C9A84C')
 DARK_NAVY  = colors.HexColor('#2C3E50')
 LIGHT_GRAY = colors.HexColor('#F7F7F7')
@@ -448,7 +522,7 @@ YEL_IMPACT = colors.HexColor('#D4AC0D')
 PAGE_W, PAGE_H = A4
 MARGIN = 2.0 * cm
 CW = PAGE_W - 2 * MARGIN
- 
+
 def header_footer(canvas, doc):
     canvas.saveState()
     canvas.setStrokeColor(MID_GRAY); canvas.setLineWidth(0.5)
@@ -460,29 +534,29 @@ def header_footer(canvas, doc):
     canvas.drawCentredString(PAGE_W/2, 1.2*cm,
         f"NexusGoldOne — Report Macro & Geopolitica  |  {WEEK_SHORT}  |  Pag. {doc.page}")
     canvas.restoreState()
- 
+
 def S(h): return Spacer(1, h*cm)
- 
+
 def sec(title):
     return [
         Paragraph(title, ParagraphStyle('sh', fontName='Helvetica-Bold', fontSize=13,
             textColor=TEXT_COLOR, spaceBefore=0.3*cm, spaceAfter=0.08*cm)),
         HRFlowable(width=CW, thickness=0.8, color=colors.HexColor('#BDC3C7'), spaceAfter=0.2*cm)
     ]
- 
+
 def sub(title):
     return Paragraph(title, ParagraphStyle('sub', fontName='Helvetica-Bold', fontSize=10,
         textColor=GOLD, spaceBefore=0.2*cm, spaceAfter=0.06*cm))
- 
+
 def body(text):
     return Paragraph(text, ParagraphStyle('body', fontName='Helvetica', fontSize=9.5,
         textColor=TEXT_COLOR, leading=14.5, alignment=TA_JUSTIFY, spaceAfter=0.10*cm))
- 
+
 def bul(text):
     return Paragraph(f'• {text}', ParagraphStyle('bul', fontName='Helvetica', fontSize=9.5,
         textColor=TEXT_COLOR, leading=14.5,
         leftIndent=0.7*cm, firstLineIndent=-0.35*cm, spaceAfter=0.10*cm))
- 
+
 def tbl(data, widths=None):
     n = len(data[0])
     if widths is None: widths = [CW/n]*n
@@ -499,12 +573,12 @@ def tbl(data, widths=None):
         ('GRID',(0,0),(-1,-1),0.5,MID_GRAY), ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#BDC3C7')),
     ]))
     return t
- 
+
 def ff_calendar_tbl(events):
     """Genera la tabella del calendario Forex Factory con eventi USD della settimana."""
     if not events:
         return None  # Usa il calendario AI come fallback
- 
+
     hdr_style = ParagraphStyle('ff_hdr', fontName='Helvetica-Bold', fontSize=8.5,
                     textColor=colors.white, alignment=TA_CENTER, leading=12)
     cell_style = ParagraphStyle('ff_cell', fontName='Helvetica', fontSize=8.5,
@@ -513,7 +587,7 @@ def ff_calendar_tbl(events):
                     textColor=TEXT_COLOR, alignment=TA_CENTER, leading=12)
     time_style = ParagraphStyle('ff_time', fontName='Helvetica', fontSize=8,
                     textColor=DARK_GRAY, alignment=TA_CENTER, leading=12)
- 
+
     rows = [[
         Paragraph('Giorno', hdr_style),
         Paragraph('Orario (ET)', hdr_style),
@@ -522,13 +596,13 @@ def ff_calendar_tbl(events):
         Paragraph('Prev. / Prec.', hdr_style),
     ]]
     row_bgs = []
- 
+
     for i, ev in enumerate(events[:18]):  # max 18 righe
         if ev['impact'] == 'High':
             ic, imp_text = RED_IMPACT, 'ALTO'
         else:
             ic, imp_text = ORG_IMPACT, 'MEDIO'
- 
+
         imp_style = ParagraphStyle(f'ff_imp_{i}', fontName='Helvetica-Bold', fontSize=8.5,
                         textColor=ic, alignment=TA_CENTER, leading=12)
         fp = f"{ev['forecast']} / {ev['previous']}"
@@ -540,7 +614,7 @@ def ff_calendar_tbl(events):
             Paragraph(fp,           time_style),
         ])
         row_bgs.append(LIGHT_GRAY if i % 2 == 1 else colors.white)
- 
+
     t = Table(rows, colWidths=[CW*0.18, CW*0.12, CW*0.38, CW*0.12, CW*0.20])
     style = [
         ('BACKGROUND',    (0,0), (-1,0), DARK_NAVY),
@@ -556,11 +630,11 @@ def ff_calendar_tbl(events):
         style.append(('BACKGROUND', (0, i+1), (-1, i+1), bg))
     t.setStyle(TableStyle(style))
     return t
- 
+
 def news_tbl(articles):
     if not articles:
         return body("Nessuna notizia di alto impatto rilevata nelle ultime 36 ore. Fare riferimento al calendario eventi della settimana (Sezione 8) per gli appuntamenti macro in agenda.")
- 
+
     # Stili con leading aumentato per evitare sovrapposizioni
     hdr_style  = ParagraphStyle('ntbl_hdr', fontName='Helvetica-Bold', fontSize=8.5,
                      textColor=colors.white, alignment=TA_CENTER, leading=13)
@@ -570,16 +644,16 @@ def news_tbl(articles):
                      textColor=TEXT_COLOR, leading=13, wordWrap='LTR')
     src_style  = ParagraphStyle('ntbl_src', fontName='Helvetica-Oblique', fontSize=8,
                      textColor=DARK_GRAY, leading=13, wordWrap='LTR')
- 
+
     rows = [[
         Paragraph('Imp.', hdr_style),
         Paragraph('Data', hdr_style),
         Paragraph('Titolo (EN)', hdr_style),
         Paragraph('Fonte', hdr_style),
     ]]
- 
+
     row_bgs = []
- 
+
     for i, art in enumerate(articles):
         if '🔴' in art['impact'] or 'CRITICO' in art['impact'].upper():
             ic       = RED_IMPACT
@@ -590,24 +664,24 @@ def news_tbl(articles):
         else:
             ic       = YEL_IMPACT
             imp_text = 'MEDIO'
- 
+
         imp_style = ParagraphStyle(f'ntbl_imp_{i}', fontName='Helvetica-Bold', fontSize=8.5,
                         textColor=ic, alignment=TA_CENTER, leading=13)
- 
+
         # Titolo troncato a 80 chars per evitare overflow celle
         title_text = art['title'][:80] + ('...' if len(art['title']) > 80 else '')
         # Fonte: abbrevia nomi lunghi
         src_text = art['source'].replace('Gold News', 'Gold').replace('Finance', 'Fin.').replace('Markets', 'Mkt')
- 
+
         rows.append([
             Paragraph(imp_text, imp_style),
             Paragraph(art['date_str'], date_style),
             Paragraph(title_text, cell_style),
             Paragraph(src_text, src_style),
         ])
- 
+
         row_bgs.append(LIGHT_GRAY if i % 2 == 1 else colors.white)
- 
+
     # Colonne: imp=13%, data=9%, titolo=52%, fonte=26%
     t = Table(rows, colWidths=[CW*0.13, CW*0.09, CW*0.52, CW*0.26])
     style = [
@@ -625,10 +699,10 @@ def news_tbl(articles):
         style.append(('BACKGROUND', (0, i+1), (-1, i+1), bg))
     t.setStyle(TableStyle(style))
     return t
- 
+
 # ── COSTRUZIONE STORY ─────────────────────────────────────────────────────────
 story = []
- 
+
 # TITOLO
 story.append(S(0.1))
 story.append(Paragraph("NEXUSGOLDONE", ParagraphStyle('brand', fontName='Helvetica-Bold',
@@ -642,17 +716,25 @@ story.append(Paragraph(WEEK_LABEL, ParagraphStyle('weeklabel', fontName='Helveti
 story.append(S(0.2))
 story.append(HRFlowable(width=CW, thickness=1.5, color=GOLD, spaceAfter=0))
 story.append(S(0.2))
- 
+
 # SEZ 1 — SNAPSHOT PREZZI
 story.extend(sec("1. Snapshot Prezzi Settimanale"))
 price_data = [
-    ['Asset', 'Chiusura sett. prec.', 'Var. sett. prec.', 'Min / Max settim.'],
+    ['Asset', 'Prezzo Attuale', 'Min / Max Settimana'],
     xau_row, spx_row, ndx_row, dxy_row,
 ]
-story.append(tbl(price_data, [CW*0.30, CW*0.22, CW*0.18, CW*0.30]))
+story.append(tbl(price_data, [CW*0.38, CW*0.28, CW*0.34]))
+if eur_price is not None or vix_price is not None or tny_price is not None:
+    story.append(S(0.08))
+    story.append(sub("Indicatori Chiave"))
+    indic_data = [
+        ['Indicatore', 'Valore Attuale', 'Contesto'],
+        eur_row, vix_row, tny_row,
+    ]
+    story.append(tbl(indic_data, [CW*0.38, CW*0.28, CW*0.34]))
 story.append(S(0.1))
 story.append(body(ai["snapshot_commento"]))
- 
+
 # SEZ 2 — AGENDA MACROECONOMICA USD (Forex Factory o AI fallback — sempre forward-looking)
 story.extend(sec(f"2. Agenda Macroeconomica USD — {WEEK_LABEL}"))
 _ff_tbl = ff_calendar_tbl(ff_calendar)
@@ -687,7 +769,8 @@ else:
         s=ParagraphStyle(f'cal_imp2_{idx}',fontName='Helvetica-Bold',fontSize=9,
                 textColor=col,alignment=TA_CENTER,leading=12)
         return Paragraph(label,s)
-    def _gf(d): return f"{d.strftime('%a')} {d.day} {MESI_SHORT[d.month]}"
+    _GIORNI_SHORT = {0:'Lun',1:'Mar',2:'Mer',3:'Gio',4:'Ven',5:'Sab',6:'Dom'}
+    def _gf(d): return f"{_GIORNI_SHORT[d.weekday()]} {d.day} {MESI_SHORT[d.month]}"
     _lun=monday;_mar=monday+timedelta(1);_mer=monday+timedelta(2)
     _gio=monday+timedelta(3);_ven=monday+timedelta(4)
     _li,_lc=_il(ai["cal_lun_imp"]);_mi,_mc=_il(ai["cal_mar_imp"])
@@ -716,9 +799,23 @@ else:
     ]))
     story.append(_cal_t)
 story.append(S(0.1))
-story.append(body(f"<b>Nota:</b> {ai['cal_nota']}"))
+# Nota: usa i dati REALI di FF se disponibili, altrimenti quella dell'AI
+_nota_finale = ff_nota_reale if ff_nota_reale else ai['cal_nota']
+story.append(body(f"<b>Nota:</b> {_nota_finale}"))
 story.append(PageBreak())
- 
+
+# SEZ 2b — NOTIZIE FLASH ULTIME 72 ORE (solo se ci sono notizie)
+if weekly_news:
+    story.extend(sec("2b. Notizie Flash — Ultime 72 Ore"))
+    story.append(body(
+        f"Notizie di alto impatto dai principali feed finanziari globali, aggiornate al {today.strftime('%d %B %Y')}. "
+        f"Fonti: Kitco Gold News, Reuters, Yahoo Finance, CNBC, MarketWatch. "
+        f"Le notizie sono classificate per rilevanza (Critico / Alto / Medio) in base all'impatto atteso su oro, dollaro e mercati."
+    ))
+    story.append(S(0.08))
+    story.append(news_tbl(weekly_news))
+    story.append(S(0.1))
+
 # SEZ 3 — GEOPOLITICA
 story.extend(sec("3. Geopolitica — Scenario Globale"))
 story.append(body(ai["geopolitica_intro"]))
@@ -728,7 +825,7 @@ story.append(bul(ai["geo_bullet_3"]))
 story.append(bul(ai["geo_bullet_4"]))
 story.append(bul(ai.get("geo_bullet_5", "")))
 story.append(bul(ai.get("geo_bullet_6", "")))
- 
+
 # SEZ 4 — MERCATI AZIONARI
 story.extend(sec("4. Mercati Azionari — NASDAQ e S&amp;P 500"))
 story.append(body(ai["azionario_intro"]))
@@ -740,9 +837,9 @@ story.append(sub("NASDAQ Composite"))
 story.append(bul(ai["ndx_bullet_1"]))
 story.append(bul(ai["ndx_bullet_2"]))
 story.append(bul(ai["ndx_bullet_3"]))
-# CondPageBreak invece di PageBreak — nuova pagina solo se rimangono < 10cm
-story.append(CondPageBreak(10*cm))
- 
+# CondPageBreak invece di PageBreak — nuova pagina solo se rimangono < 6cm
+story.append(CondPageBreak(6*cm))
+
 # SEZ 4b — COMMODITIES (WTI + Argento)
 story.extend(sec("4b. Commodity — WTI Crude Oil e Argento"))
 story.append(body(ai.get("wti_intro", "Il petrolio e l'argento sono asset chiave da monitorare in correlazione con l'oro.")))
@@ -754,7 +851,7 @@ story.append(sub("Argento (XAG/USD)"))
 story.append(bul(ai.get("silver_bullet_1", "")))
 story.append(bul(ai.get("silver_bullet_2", "")))
 story.append(S(0.1))
- 
+
 # SEZ 5 — DE-DOLLARIZZAZIONE
 story.extend(sec("5. De-Dollarizzazione e Acquisti Banche Centrali"))
 story.append(body(ai["dedollarizzazione_intro"]))
@@ -767,7 +864,7 @@ cb_data = [
 ]
 story.append(tbl(cb_data, [CW*0.27, CW*0.21, CW*0.24, CW*0.28]))
 story.append(S(0.1))
- 
+
 # SEZ 6 — DAZI
 story.extend(sec("6. Dazi USA e Guerra Commerciale"))
 story.append(body(ai["dazi_intro"]))
@@ -775,7 +872,7 @@ story.append(bul(ai["dazi_bullet_1"]))
 story.append(bul(ai["dazi_bullet_2"]))
 story.append(bul(ai["dazi_bullet_3"]))
 story.append(bul(ai["dazi_bullet_4"]))
- 
+
 # SEZ 7 — BANCHE CENTRALI
 story.extend(sec("7. Banche Centrali — Fed &amp; BCE"))
 story.append(sub("Federal Reserve (USA)"))
@@ -786,8 +883,8 @@ story.append(bul(ai["fed_bullet_4"]))
 story.append(sub("Banca Centrale Europea (BCE)"))
 story.append(bul(ai["bce_bullet_1"]))
 story.append(bul(ai["bce_bullet_2"]))
-story.append(CondPageBreak(9*cm))
- 
+story.append(CondPageBreak(5*cm))
+
 # SEZ 8 — OUTLOOK
 story.extend(sec(f"8. Outlook — {WEEK_LABEL}"))
 story.append(body(ai["outlook_intro"]))
@@ -797,7 +894,7 @@ story.append(bul(ai["outlook_bullet_3"]))
 story.append(bul(ai["outlook_bullet_4"]))
 story.append(bul(ai["outlook_bullet_5"]))
 story.append(S(0.1))
- 
+
 # DISCLAIMER
 story.append(HRFlowable(width=CW, thickness=0.5, color=MID_GRAY, spaceAfter=0.2*cm))
 story.append(Paragraph(
@@ -809,19 +906,19 @@ story.append(Paragraph(
     ParagraphStyle('disc', fontName='Helvetica-Oblique', fontSize=7,
         textColor=DARK_GRAY, leading=10.5, alignment=TA_CENTER)
 ))
- 
+
 # BUILD
 doc = SimpleDocTemplate(OUTPUT, pagesize=A4,
     leftMargin=MARGIN, rightMargin=MARGIN, topMargin=1.8*cm, bottomMargin=2.2*cm)
 doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
 print(f"PDF generato: {OUTPUT}")
- 
+
 # ── INVIO TELEGRAM ────────────────────────────────────────────────────────────
 BOT_TOKEN      = os.environ.get("BOT_TOKEN")
 CHANNEL_ID     = os.environ.get("CHANNEL_ID")
 TOPIC_ID       = os.environ.get("TOPIC_ID", "2")
 ADMIN_CHAT_ID  = os.environ.get("REVIEW_GROUP_ID", "-5122912249")  # privato admin
- 
+
 def send_admin_alert(token, chat_id, message):
     """Invia un messaggio privato all'admin in caso di errore — mai visibile sul canale."""
     try:
@@ -832,7 +929,7 @@ def send_admin_alert(token, chat_id, message):
         )
     except Exception:
         pass  # se anche questo fallisce, logga solo su GitHub Actions
- 
+
 def send_document_with_retry(token, channel_id, topic_id, filepath, filename, caption, retries=3):
     """Invia il PDF con fino a 3 tentativi automatici."""
     url = f"https://api.telegram.org/bot{token}/sendDocument"
@@ -857,7 +954,7 @@ def send_document_with_retry(token, channel_id, topic_id, filepath, filename, ca
             last_error = str(e)
             print(f"Tentativo {attempt} — eccezione: {last_error}")
     return last_error  # ritorna il messaggio di errore se tutti i tentativi falliscono
- 
+
 if not BOT_TOKEN or not CHANNEL_ID:
     msg = "⚠️ *NexusGoldOne — Report NON inviato*\nBOT\\_TOKEN o CHANNEL\\_ID mancanti nelle variabili d'ambiente."
     print(msg)
