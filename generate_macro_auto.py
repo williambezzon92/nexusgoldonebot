@@ -5,18 +5,18 @@ NexusGoldOne — Generatore automatico Report Macro & Geopolitica
 Gira ogni lunedì su GitHub Actions e invia il PDF al canale Telegram.
 Versione 2.0 — Analisi AI dinamica via Claude API + prezzi live + notizie RSS
 """
-
+ 
 import os
 import json
 import re
 import requests
 from datetime import date, datetime, timedelta, timezone
-
+ 
 # ── DATE AUTOMATICHE ──────────────────────────────────────────────────────────
 today    = date.today()
 monday   = today - timedelta(days=today.weekday())
 friday   = monday + timedelta(days=4)   # i mercati vanno lun-ven
-
+ 
 MESI = {
     1:"Gennaio", 2:"Febbraio", 3:"Marzo", 4:"Aprile",
     5:"Maggio", 6:"Giugno", 7:"Luglio", 8:"Agosto",
@@ -26,12 +26,12 @@ MESI_SHORT = {
     1:"Gen", 2:"Feb", 3:"Mar", 4:"Apr", 5:"Mag", 6:"Giu",
     7:"Lug", 8:"Ago", 9:"Set", 10:"Ott", 11:"Nov", 12:"Dic"
 }
-
+ 
 WEEK_LABEL = f"Settimana dal {monday.day:02d} al {friday.day:02d} {MESI[friday.month]} {friday.year}"
 WEEK_SHORT = f"{monday.day:02d} {MESI_SHORT[monday.month]} – {friday.day:02d} {MESI_SHORT[friday.month]} {friday.year}"
 FILENAME   = f"MACRO_Geopolitica_{monday.strftime('%d-%m-%Y')}.pdf"
 OUTPUT     = f"/tmp/{FILENAME}"
-
+ 
 # ── NOTIZIE AUTOMATICHE DA RSS FEEDS ─────────────────────────────────────────
 def get_weekly_news():
     try:
@@ -39,7 +39,7 @@ def get_weekly_news():
     except ImportError:
         print("feedparser non installato, saltando notizie.")
         return []
-
+ 
     feeds = [
         ("Kitco Gold News",    "https://www.kitco.com/rss/kitconews.rss"),
         ("Reuters Markets",    "https://feeds.reuters.com/reuters/businessNews"),
@@ -48,7 +48,7 @@ def get_weekly_news():
         ("CNBC Finance",       "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
         ("Investing.com Gold", "https://www.investing.com/rss/news_301.rss"),
     ]
-
+ 
     KEYWORDS_HIGH = [
         'gold', 'xau', 'federal reserve', 'fed rate', 'inflation', 'cpi', 'pce',
         'war', 'attack', 'strike', 'conflict', 'crisis', 'nuclear',
@@ -63,10 +63,11 @@ def get_weekly_news():
         'jobs', 'unemployment', 'gdp', 'economy', 'silver', 'copper',
         'bank', 'ecb', 'boe', 'imf', 'world bank', 'commodity'
     ]
-
+ 
     articles = []
-    cutoff = datetime.now(timezone.utc) - timedelta(days=8)
-
+    # Solo notizie delle ultime 36 ore — contesto immediato per la settimana in corso
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=36)
+ 
     for source_name, url in feeds:
         try:
             feed = feedparser.parse(url, request_headers={
@@ -79,15 +80,15 @@ def get_weekly_news():
                         pub_date = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
                     except Exception:
                         pass
-
+ 
                 if pub_date and pub_date < cutoff:
                     continue
-
+ 
                 title   = entry.get('title', '').strip()
                 summary = entry.get('summary', entry.get('description', '')).strip()
                 summary = re.sub(r'<[^>]+>', '', summary)[:250]
                 text_low = (title + ' ' + summary).lower()
-
+ 
                 score = 0
                 for kw in KEYWORDS_HIGH:
                     if kw in text_low:
@@ -95,7 +96,7 @@ def get_weekly_news():
                 for kw in KEYWORDS_MED:
                     if kw in text_low:
                         score += 1
-
+ 
                 if score >= 3:
                     date_str = pub_date.strftime('%d %b') if pub_date else '—'
                     impact   = '🔴 CRITICO' if score >= 9 else ('🟠 ALTO' if score >= 5 else '🟡 MEDIO')
@@ -109,9 +110,9 @@ def get_weekly_news():
                     })
         except Exception as e:
             print(f"Errore feed {source_name}: {e}")
-
+ 
     articles.sort(key=lambda x: x['score'], reverse=True)
-
+ 
     seen = set()
     unique = []
     for art in articles:
@@ -129,13 +130,79 @@ def get_weekly_news():
             unique.append(art)
         if len(unique) >= 7:
             break
-
+ 
     print(f"Notizie trovate: {len(unique)}")
     return unique
-
-print("Recupero notizie della settimana...")
-weekly_news = get_weekly_news()
-
+ 
+# ── CALENDARIO FOREX FACTORY (eventi USD della settimana) ────────────────────
+def get_forex_factory_calendar():
+    """
+    Scarica il calendario macroeconomico settimanale da Forex Factory (API JSON pubblica).
+    Filtra solo eventi USD ad alto e medio impatto.
+    Funziona su GitHub Actions — potrebbe essere bloccato in alcuni sandbox locali.
+    """
+    IMPACT_ORDER = {'High': 0, 'Medium': 1, 'Low': 2, 'Non-Economic': 3, 'Holiday': 4}
+    WEEKDAYS_IT = {
+        'Monday': 'Lunedì', 'Tuesday': 'Martedì', 'Wednesday': 'Mercoledì',
+        'Thursday': 'Giovedì', 'Friday': 'Venerdì',
+        'Saturday': 'Sabato', 'Sunday': 'Domenica'
+    }
+    try:
+        url = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (NexusGoldOne Report Bot/2.0)',
+            'Accept': 'application/json'
+        }
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+ 
+        # Filtra solo eventi USD con impatto High o Medium
+        usd_events = []
+        for ev in data:
+            if ev.get('country', '').upper() != 'USD':
+                continue
+            impact = ev.get('impact', 'Low')
+            if impact not in ('High', 'Medium'):
+                continue
+ 
+            # Parsa la data
+            date_str = ev.get('date', '')  # es. "2025-04-21T08:30:00-05:00"
+            try:
+                dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                day_name_en = dt.strftime('%A')
+                day_name_it = WEEKDAYS_IT.get(day_name_en, day_name_en)
+                day_label   = f"{day_name_it} {dt.day} {MESI_SHORT[dt.month]}"
+                time_label  = dt.strftime('%H:%M') + ' ET'
+            except Exception:
+                day_label  = date_str[:10]
+                time_label = ''
+ 
+            forecast = ev.get('forecast', '') or '—'
+            previous = ev.get('previous', '') or '—'
+            title    = ev.get('title', '').strip()
+ 
+            usd_events.append({
+                'title':    title,
+                'day':      day_label,
+                'time':     time_label,
+                'impact':   impact,
+                'forecast': forecast,
+                'previous': previous,
+            })
+ 
+        # Ordina per data/impatto
+        usd_events.sort(key=lambda x: (x['day'], IMPACT_ORDER.get(x['impact'], 9)))
+        print(f"Forex Factory: {len(usd_events)} eventi USD High/Medium trovati")
+        return usd_events
+ 
+    except Exception as e:
+        print(f"Forex Factory non disponibile ({e}) — uso calendario AI")
+        return []
+ 
+print("Recupero calendario Forex Factory (eventi USD)...")
+ff_calendar = get_forex_factory_calendar()
+ 
 # ── PREZZI LIVE (Yahoo Finance) ───────────────────────────────────────────────
 def get_price(ticker):
     try:
@@ -153,73 +220,79 @@ def get_price(ticker):
     except Exception as e:
         print(f"Errore prezzo {ticker}: {e}")
         return None, None, None, None
-
+ 
 print("Recupero prezzi di mercato...")
 xau_price, xau_chg, xau_low, xau_high = get_price("GC=F")
 spx_price, spx_chg, spx_low, spx_high = get_price("^GSPC")
 ndx_price, ndx_chg, ndx_low, ndx_high = get_price("^IXIC")
 dxy_price, dxy_chg, dxy_low, dxy_high = get_price("DX-Y.NYB")
-
+wti_price, wti_chg, wti_low, wti_high = get_price("CL=F")
+xag_price, xag_chg, xag_low, xag_high = get_price("SI=F")
+ 
 def fmt(val, decimals=0, prefix=""):
     if val is None: return "N/D"
     return f"{prefix}{val:,.{decimals}f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
+ 
 def fmt_chg(val):
     if val is None: return "N/D"
     sign = "+" if val >= 0 else ""
     return f"{sign}{val:.1f}%".replace(".", ",")
-
+ 
 xau_row = ["XAU/USD (Oro)",     f"~${fmt(xau_price, 0)}", fmt_chg(xau_chg), f"${fmt(xau_low, 0)} / ${fmt(xau_high, 0)}"]
 spx_row = ["S&P 500",           f"~{fmt(spx_price, 0)}",  fmt_chg(spx_chg), f"{fmt(spx_low, 0)} / {fmt(spx_high, 0)}"]
 ndx_row = ["NASDAQ Composite",  f"~{fmt(ndx_price, 0)}",  fmt_chg(ndx_chg), f"{fmt(ndx_low, 0)} / {fmt(ndx_high, 0)}"]
 dxy_row = ["DXY (Dollaro USA)", f"~{fmt(dxy_price, 2)}",  fmt_chg(dxy_chg), f"{fmt(dxy_low, 2)} / {fmt(dxy_high, 2)}"]
-
+ 
 # ── ANALISI AI DINAMICA (Claude Haiku) ───────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 ai = None
-
+ 
 if ANTHROPIC_API_KEY:
     try:
         import anthropic
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
+ 
         # Prepara lista notizie per il prompt
         news_text = ""
         if weekly_news:
             news_text = "\n\nNOTIZIE REALI DELLA SETTIMANA (da feed RSS finanziari):\n"
             for i, n in enumerate(weekly_news[:7], 1):
                 news_text += f"{i}. [{n['impact']}] {n['title']} ({n['source']}, {n['date_str']})\n"
-
+ 
         lun = monday
         mar = monday + timedelta(days=1)
         mer = monday + timedelta(days=2)
         gio = monday + timedelta(days=3)
         ven = monday + timedelta(days=4)
-
+ 
         prompt = f"""Sei l'analista macro di NexusGoldOne, servizio professionale di copytrading sull'oro (XAU/USD).
 Oggi e' {today.strftime('%A %d %B %Y')} — stai scrivendo il report settimanale.
-
+ 
 DATI DI MERCATO REALI (aggiornati a oggi):
 - XAU/USD (Oro): ${fmt(xau_price, 0)} | Var. settimanale: {fmt_chg(xau_chg)} | Range: ${fmt(xau_low,0)}-${fmt(xau_high,0)}
 - S&P 500: {fmt(spx_price, 0)} | Var. settimanale: {fmt_chg(spx_chg)} | Range: {fmt(spx_low,0)}-{fmt(spx_high,0)}
 - NASDAQ: {fmt(ndx_price, 0)} | Var. settimanale: {fmt_chg(ndx_chg)} | Range: {fmt(ndx_low,0)}-{fmt(ndx_high,0)}
 - DXY: {fmt(dxy_price, 2)} | Var. settimanale: {fmt_chg(dxy_chg)} | Range: {fmt(dxy_low,2)}-{fmt(dxy_high,2)}
+- WTI Crude Oil: ${fmt(wti_price, 1)} | Var. settimanale: {fmt_chg(wti_chg)} | Range: ${fmt(wti_low,1)}-${fmt(wti_high,1)}
+- XAG/USD (Argento): ${fmt(xag_price, 2)} | Var. settimanale: {fmt_chg(xag_chg)} | Range: ${fmt(xag_low,2)}-${fmt(xag_high,2)}
 {news_text}
-
+ 
 Settimana corrente: Lun {lun.day} {MESI_SHORT[lun.month]}, Mar {mar.day}, Mer {mer.day}, Gio {gio.day}, Ven {ven.day} {MESI_SHORT[ven.month]} {ven.year}
-
+ 
 Genera un'analisi macro-geopolitica AGGIORNATA e SPECIFICA per {today.strftime('%B %Y')}.
 Basa l'analisi sulle notizie reali ricevute. Tono professionale per investitori retail sull'oro.
 Tutto in italiano. Nei testi usa tag HTML <b>Titolo:</b> per i bullet. Niente markdown.
-
+ 
 Rispondi SOLO con JSON valido, nessun testo fuori:
 {{
   "snapshot_commento": "2-3 frasi tecniche sui prezzi reali di questa settimana, citando i valori esatti",
   "geopolitica_intro": "3-4 frasi sulla situazione geopolitica ATTUALE di {today.strftime('%B %Y')}, basata sulle notizie reali",
-  "geo_bullet_1": "<b>Tema 1:</b> evento geopolitico specifico e reale con dettagli aggiornati",
-  "geo_bullet_2": "<b>Tema 2:</b> evento geopolitico specifico aggiornato",
-  "geo_bullet_3": "<b>Tema 3:</b> evento geopolitico specifico aggiornato",
-  "geo_bullet_4": "<b>Tema 4:</b> evento geopolitico specifico aggiornato",
+  "geo_bullet_1": "<b>Medio Oriente / Iran–USA:</b> situazione aggiornata con dettagli specifici e impatto su XAU/USD",
+  "geo_bullet_2": "<b>Russia–Ucraina:</b> sviluppi della settimana, posizione NATO, impatto safe haven",
+  "geo_bullet_3": "<b>Cina–Taiwan–USA:</b> tensioni commerciali e militari, terre rare, semiconduttori",
+  "geo_bullet_4": "<b>De-dollarizzazione / BRICS+:</b> acquisti banche centrali, accordi valutari alternativi",
+  "geo_bullet_5": "<b>Energia / Petrolio:</b> stato OPEC+, Stretto di Hormuz, impatto WTI sull'oro",
+  "geo_bullet_6": "<b>Dazi USA e guerra commerciale:</b> misure in vigore, ritorsioni, impatto inflazione e oro",
   "azionario_intro": "2-3 frasi sui mercati azionari USA nel contesto attuale",
   "sp500_bullet_1": "<b>Livelli chiave:</b> supporti e resistenze S&P500 con valori numerici reali",
   "sp500_bullet_2": "<b>Rischi principali:</b> rischi specifici e attuali",
@@ -272,9 +345,15 @@ Rispondi SOLO con JSON valido, nessun testo fuori:
   "outlook_bullet_2": "<b>S&P 500:</b> livelli chiave specifici e scenario per la settimana",
   "outlook_bullet_3": "<b>Dati macro USA:</b> dato piu' importante della settimana e impatto atteso su Fed e oro",
   "outlook_bullet_4": "<b>Target analisti oro {today.year}:</b> previsioni aggiornate di almeno 3 banche con cifre reali",
-  "outlook_bullet_5": "<b>Scenario base:</b> visione complessiva e bias direzionale per la settimana"
+  "outlook_bullet_5": "<b>Scenario base:</b> visione complessiva e bias direzionale per la settimana",
+  "wti_intro": "2 frasi su WTI Crude Oil nel contesto attuale: prezzo, driver, correlazione con oro",
+  "wti_bullet_1": "<b>Prezzo WTI:</b> livello attuale, variazione settimanale, range e driver principali",
+  "wti_bullet_2": "<b>OPEC+ e offerta:</b> decisioni recenti o attese OPEC+, impatto su supply globale",
+  "wti_bullet_3": "<b>Correlazione oro–petrolio:</b> come il movimento del WTI si riflette su XAU/USD questa settimana",
+  "silver_bullet_1": "<b>XAG/USD (Argento):</b> prezzo attuale, ratio oro/argento, trend tecnico",
+  "silver_bullet_2": "<b>Domanda industriale argento:</b> settori chiave (solare, EV, semiconduttori) e impatto sul prezzo"
 }}"""
-
+ 
         print("Generazione analisi con Claude AI...")
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
@@ -288,11 +367,11 @@ Rispondi SOLO con JSON valido, nessun testo fuori:
                 raw = raw[4:]
         ai = json.loads(raw)
         print("Analisi AI generata con successo!")
-
+ 
     except Exception as e:
         print(f"Errore Claude API: {e}. Uso testo di fallback.")
         ai = None
-
+ 
 # ── FALLBACK testo statico se Claude non disponibile ─────────────────────────
 if ai is None:
     ai = {
@@ -302,6 +381,8 @@ if ai is None:
         "geo_bullet_2": "<b>USA-Cina:</b> tensioni commerciali e militari nello Stretto di Taiwan. Impatto sulle catene di fornitura dei semiconduttori.",
         "geo_bullet_3": "<b>Guerra commerciale:</b> dazi USA mantengono pressione sull'inflazione globale e incertezza normativa.",
         "geo_bullet_4": "<b>De-dollarizzazione:</b> BRICS+ accelera la diversificazione dalle riserve in dollari verso l'oro fisico.",
+        "geo_bullet_5": "<b>Energia / Petrolio:</b> OPEC+ mantiene i tagli alla produzione. La volatilita' del WTI supporta la domanda di beni rifugio.",
+        "geo_bullet_6": "<b>Dazi USA:</b> le misure tariffarie mantengono pressione inflazionistica e incertezza normativa sui mercati globali.",
         "azionario_intro": "I mercati azionari USA navigano in un contesto di dati macro contrastanti. La stagione degli utili e le aspettative Fed rimangono i principali driver di breve termine.",
         "sp500_bullet_1": f"<b>Livelli chiave:</b> chiusura settimana precedente {spx_row[1]} ({spx_row[2]}). Supporto in area {fmt(spx_low, 0)}, resistenza in area {fmt(spx_high, 0)}.",
         "sp500_bullet_2": "<b>Rischi principali:</b> dazi su farmaci e manifatturiero comprimono i margini aziendali. Volatilita' settoriale elevata.",
@@ -336,9 +417,15 @@ if ai is None:
         "outlook_bullet_2": f"<b>S&P 500:</b> area {fmt(spx_low, 0)} come supporto chiave della settimana.",
         "outlook_bullet_3": "<b>Dati macro USA:</b> CPI e PPI determinanti per le aspettative Fed. Lettura sopra attese = opportunita' di acquisto nel medio termine.",
         "outlook_bullet_4": f"<b>Target analisti oro {today.year}:</b> consenso rialzista tra le principali banche d'investimento con target ambiziosi per fine anno.",
-        "outlook_bullet_5": "<b>Scenario base:</b> consolidamento sopra i supporti con possibili spike di volatilita'. Bias strutturale rialzista confermato."
+        "outlook_bullet_5": "<b>Scenario base:</b> consolidamento sopra i supporti con possibili spike di volatilita'. Bias strutturale rialzista confermato.",
+        "wti_intro": f"Il WTI Crude Oil quota intorno a ${fmt(wti_price,0)} nella settimana ({fmt_chg(wti_chg)}), con dinamiche OPEC+ e tensioni geopolitiche che guidano la volatilita'. La correlazione con l'oro rimane un indicatore chiave per i trader.",
+        "wti_bullet_1": f"<b>Prezzo WTI:</b> chiusura a ${fmt(wti_price,0)} ({fmt_chg(wti_chg)}). Range settimana: ${fmt(wti_low,0)}-${fmt(wti_high,0)}. Volatilita' elevata per tensioni Medio Oriente.",
+        "wti_bullet_2": "<b>OPEC+ e offerta:</b> i tagli alla produzione rimangono in vigore. Prossima riunione da monitorare per segnali di inversione.",
+        "wti_bullet_3": "<b>Correlazione oro–petrolio:</b> un WTI in rialzo per ragioni geopolitiche tende a supportare XAU/USD come asset rifugio.",
+        "silver_bullet_1": f"<b>XAG/USD (Argento):</b> prezzo ${fmt(xag_price,1)} ({fmt_chg(xag_chg)}). Ratio oro/argento: {round(xau_price/xag_price) if xau_price and xag_price else 'N/D'}:1 — argento storicamente conveniente rispetto all'oro.",
+        "silver_bullet_2": "<b>Domanda industriale argento:</b> i settori solare ed EV mantengono forte domanda strutturale. Supporto al prezzo nel medio termine.",
     }
-
+ 
 # ── PDF ───────────────────────────────────────────────────────────────────────
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -348,7 +435,7 @@ from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
                                  Table, TableStyle, HRFlowable, PageBreak,
                                  CondPageBreak)
-
+ 
 GOLD       = colors.HexColor('#C9A84C')
 DARK_NAVY  = colors.HexColor('#2C3E50')
 LIGHT_GRAY = colors.HexColor('#F7F7F7')
@@ -361,7 +448,7 @@ YEL_IMPACT = colors.HexColor('#D4AC0D')
 PAGE_W, PAGE_H = A4
 MARGIN = 2.0 * cm
 CW = PAGE_W - 2 * MARGIN
-
+ 
 def header_footer(canvas, doc):
     canvas.saveState()
     canvas.setStrokeColor(MID_GRAY); canvas.setLineWidth(0.5)
@@ -373,29 +460,29 @@ def header_footer(canvas, doc):
     canvas.drawCentredString(PAGE_W/2, 1.2*cm,
         f"NexusGoldOne — Report Macro & Geopolitica  |  {WEEK_SHORT}  |  Pag. {doc.page}")
     canvas.restoreState()
-
+ 
 def S(h): return Spacer(1, h*cm)
-
+ 
 def sec(title):
     return [
         Paragraph(title, ParagraphStyle('sh', fontName='Helvetica-Bold', fontSize=13,
             textColor=TEXT_COLOR, spaceBefore=0.3*cm, spaceAfter=0.08*cm)),
         HRFlowable(width=CW, thickness=0.8, color=colors.HexColor('#BDC3C7'), spaceAfter=0.2*cm)
     ]
-
+ 
 def sub(title):
     return Paragraph(title, ParagraphStyle('sub', fontName='Helvetica-Bold', fontSize=10,
         textColor=GOLD, spaceBefore=0.2*cm, spaceAfter=0.06*cm))
-
+ 
 def body(text):
     return Paragraph(text, ParagraphStyle('body', fontName='Helvetica', fontSize=9.5,
         textColor=TEXT_COLOR, leading=14.5, alignment=TA_JUSTIFY, spaceAfter=0.10*cm))
-
+ 
 def bul(text):
     return Paragraph(f'• {text}', ParagraphStyle('bul', fontName='Helvetica', fontSize=9.5,
         textColor=TEXT_COLOR, leading=14.5,
         leftIndent=0.7*cm, firstLineIndent=-0.35*cm, spaceAfter=0.10*cm))
-
+ 
 def tbl(data, widths=None):
     n = len(data[0])
     if widths is None: widths = [CW/n]*n
@@ -412,50 +499,136 @@ def tbl(data, widths=None):
         ('GRID',(0,0),(-1,-1),0.5,MID_GRAY), ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#BDC3C7')),
     ]))
     return t
-
-def news_tbl(articles):
-    if not articles:
-        return body("Nessuna notizia di alto impatto rilevata questa settimana dai feed monitorati.")
-    rows = [['Imp.', 'Data', 'Titolo (EN)', 'Fonte']]
-    impact_colors = []
-    for art in articles:
-        rows.append([
-            art['impact'],
-            art['date_str'],
-            art['title'][:90] + ('...' if len(art['title']) > 90 else ''),
-            art['source']
-        ])
-        if '🔴' in art['impact']:
-            impact_colors.append(RED_IMPACT)
-        elif '🟠' in art['impact']:
-            impact_colors.append(ORG_IMPACT)
+ 
+def ff_calendar_tbl(events):
+    """Genera la tabella del calendario Forex Factory con eventi USD della settimana."""
+    if not events:
+        return None  # Usa il calendario AI come fallback
+ 
+    hdr_style = ParagraphStyle('ff_hdr', fontName='Helvetica-Bold', fontSize=8.5,
+                    textColor=colors.white, alignment=TA_CENTER, leading=12)
+    cell_style = ParagraphStyle('ff_cell', fontName='Helvetica', fontSize=8.5,
+                    textColor=TEXT_COLOR, leading=12, wordWrap='LTR')
+    day_style  = ParagraphStyle('ff_day', fontName='Helvetica-Bold', fontSize=8.5,
+                    textColor=TEXT_COLOR, alignment=TA_CENTER, leading=12)
+    time_style = ParagraphStyle('ff_time', fontName='Helvetica', fontSize=8,
+                    textColor=DARK_GRAY, alignment=TA_CENTER, leading=12)
+ 
+    rows = [[
+        Paragraph('Giorno', hdr_style),
+        Paragraph('Orario (ET)', hdr_style),
+        Paragraph('Evento Macroeconomico USD', hdr_style),
+        Paragraph('Impatto', hdr_style),
+        Paragraph('Prev. / Prec.', hdr_style),
+    ]]
+    row_bgs = []
+ 
+    for i, ev in enumerate(events[:18]):  # max 18 righe
+        if ev['impact'] == 'High':
+            ic, imp_text = RED_IMPACT, 'ALTO'
         else:
-            impact_colors.append(YEL_IMPACT)
-    t = Table(rows, colWidths=[CW*0.12, CW*0.09, CW*0.55, CW*0.24])
+            ic, imp_text = ORG_IMPACT, 'MEDIO'
+ 
+        imp_style = ParagraphStyle(f'ff_imp_{i}', fontName='Helvetica-Bold', fontSize=8.5,
+                        textColor=ic, alignment=TA_CENTER, leading=12)
+        fp = f"{ev['forecast']} / {ev['previous']}"
+        rows.append([
+            Paragraph(ev['day'],    day_style),
+            Paragraph(ev['time'],   time_style),
+            Paragraph(ev['title'],  cell_style),
+            Paragraph(imp_text,     imp_style),
+            Paragraph(fp,           time_style),
+        ])
+        row_bgs.append(LIGHT_GRAY if i % 2 == 1 else colors.white)
+ 
+    t = Table(rows, colWidths=[CW*0.18, CW*0.12, CW*0.38, CW*0.12, CW*0.20])
     style = [
-        ('BACKGROUND',(0,0),(-1,0),DARK_NAVY), ('TEXTCOLOR',(0,0),(-1,0),colors.white),
-        ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'), ('FONTSIZE',(0,0),(-1,0),8.5),
-        ('ALIGN',(0,0),(-1,0),'CENTER'), ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-        ('FONTNAME',(0,1),(-1,-1),'Helvetica'), ('FONTSIZE',(0,1),(-1,-1),8),
-        ('ALIGN',(0,1),(1,-1),'CENTER'), ('ALIGN',(2,1),(3,-1),'LEFT'),
-        ('TOPPADDING',(0,0),(-1,-1),5), ('BOTTOMPADDING',(0,0),(-1,-1),5),
-        ('LEFTPADDING',(0,0),(-1,-1),6), ('RIGHTPADDING',(0,0),(-1,-1),6),
-        ('GRID',(0,0),(-1,-1),0.4,MID_GRAY), ('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#BDC3C7')),
-        ('WORDWRAP',(2,1),(2,-1),'LTR'),
+        ('BACKGROUND',    (0,0), (-1,0), DARK_NAVY),
+        ('VALIGN',        (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING',    (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('LEFTPADDING',   (0,0), (-1,-1), 6),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 6),
+        ('GRID',          (0,0), (-1,-1), 0.4, MID_GRAY),
+        ('BOX',           (0,0), (-1,-1), 0.5, colors.HexColor('#BDC3C7')),
     ]
-    for i, ic in enumerate(impact_colors):
-        row = i + 1
-        bg = LIGHT_GRAY if i % 2 == 1 else colors.white
-        style.append(('ROWBACKGROUNDS', (0,row), (-1,row), [bg]))
-        style.append(('TEXTCOLOR', (0,row), (0,row), ic))
-        style.append(('FONTNAME', (0,row), (0,row), 'Helvetica-Bold'))
-        style.append(('FONTSIZE', (0,row), (0,row), 8))
+    for i, bg in enumerate(row_bgs):
+        style.append(('BACKGROUND', (0, i+1), (-1, i+1), bg))
     t.setStyle(TableStyle(style))
     return t
-
+ 
+def news_tbl(articles):
+    if not articles:
+        return body("Nessuna notizia di alto impatto rilevata nelle ultime 36 ore. Fare riferimento al calendario eventi della settimana (Sezione 8) per gli appuntamenti macro in agenda.")
+ 
+    # Stili con leading aumentato per evitare sovrapposizioni
+    hdr_style  = ParagraphStyle('ntbl_hdr', fontName='Helvetica-Bold', fontSize=8.5,
+                     textColor=colors.white, alignment=TA_CENTER, leading=13)
+    date_style = ParagraphStyle('ntbl_date', fontName='Helvetica', fontSize=8,
+                     textColor=TEXT_COLOR, alignment=TA_CENTER, leading=13)
+    cell_style = ParagraphStyle('ntbl_cell', fontName='Helvetica', fontSize=8.5,
+                     textColor=TEXT_COLOR, leading=13, wordWrap='LTR')
+    src_style  = ParagraphStyle('ntbl_src', fontName='Helvetica-Oblique', fontSize=8,
+                     textColor=DARK_GRAY, leading=13, wordWrap='LTR')
+ 
+    rows = [[
+        Paragraph('Imp.', hdr_style),
+        Paragraph('Data', hdr_style),
+        Paragraph('Titolo (EN)', hdr_style),
+        Paragraph('Fonte', hdr_style),
+    ]]
+ 
+    row_bgs = []
+ 
+    for i, art in enumerate(articles):
+        if '🔴' in art['impact'] or 'CRITICO' in art['impact'].upper():
+            ic       = RED_IMPACT
+            imp_text = 'CRITICO'
+        elif '🟠' in art['impact'] or 'ALTO' in art['impact'].upper():
+            ic       = ORG_IMPACT
+            imp_text = 'ALTO'
+        else:
+            ic       = YEL_IMPACT
+            imp_text = 'MEDIO'
+ 
+        imp_style = ParagraphStyle(f'ntbl_imp_{i}', fontName='Helvetica-Bold', fontSize=8.5,
+                        textColor=ic, alignment=TA_CENTER, leading=13)
+ 
+        # Titolo troncato a 80 chars per evitare overflow celle
+        title_text = art['title'][:80] + ('...' if len(art['title']) > 80 else '')
+        # Fonte: abbrevia nomi lunghi
+        src_text = art['source'].replace('Gold News', 'Gold').replace('Finance', 'Fin.').replace('Markets', 'Mkt')
+ 
+        rows.append([
+            Paragraph(imp_text, imp_style),
+            Paragraph(art['date_str'], date_style),
+            Paragraph(title_text, cell_style),
+            Paragraph(src_text, src_style),
+        ])
+ 
+        row_bgs.append(LIGHT_GRAY if i % 2 == 1 else colors.white)
+ 
+    # Colonne: imp=13%, data=9%, titolo=52%, fonte=26%
+    t = Table(rows, colWidths=[CW*0.13, CW*0.09, CW*0.52, CW*0.26])
+    style = [
+        ('BACKGROUND',    (0,0), (-1,0), DARK_NAVY),
+        ('VALIGN',        (0,0), (-1,-1), 'TOP'),
+        ('TOPPADDING',    (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING',   (0,0), (-1,-1), 7),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 7),
+        ('GRID',          (0,0), (-1,-1), 0.4, MID_GRAY),
+        ('BOX',           (0,0), (-1,-1), 0.5, colors.HexColor('#BDC3C7')),
+        ('WORDWRAP',      (0,0), (-1,-1), 'LTR'),
+    ]
+    for i, bg in enumerate(row_bgs):
+        style.append(('BACKGROUND', (0, i+1), (-1, i+1), bg))
+    t.setStyle(TableStyle(style))
+    return t
+ 
 # ── COSTRUZIONE STORY ─────────────────────────────────────────────────────────
 story = []
-
+ 
 # TITOLO
 story.append(S(0.1))
 story.append(Paragraph("NEXUSGOLDONE", ParagraphStyle('brand', fontName='Helvetica-Bold',
@@ -469,7 +642,7 @@ story.append(Paragraph(WEEK_LABEL, ParagraphStyle('weeklabel', fontName='Helveti
 story.append(S(0.2))
 story.append(HRFlowable(width=CW, thickness=1.5, color=GOLD, spaceAfter=0))
 story.append(S(0.2))
-
+ 
 # SEZ 1 — SNAPSHOT PREZZI
 story.extend(sec("1. Snapshot Prezzi Settimanale"))
 price_data = [
@@ -479,25 +652,73 @@ price_data = [
 story.append(tbl(price_data, [CW*0.30, CW*0.22, CW*0.18, CW*0.30]))
 story.append(S(0.1))
 story.append(body(ai["snapshot_commento"]))
-
-# SEZ 2 — NOTIZIE
-story.extend(sec("2. Notizie Piu' Impattanti della Settimana"))
-story.append(body(
-    "Le notizie sotto riportate sono selezionate automaticamente dai principali feed finanziari internazionali "
-    "(Reuters, Kitco Gold News, Yahoo Finance, CNBC, MarketWatch) e classificate per impatto su oro, "
-    "dollaro e mercati globali. I titoli sono nella lingua originale (inglese)."
-))
-story.append(S(0.08))
-story.append(news_tbl(weekly_news))
+ 
+# SEZ 2 — AGENDA MACROECONOMICA USD (Forex Factory o AI fallback — sempre forward-looking)
+story.extend(sec(f"2. Agenda Macroeconomica USD — {WEEK_LABEL}"))
+_ff_tbl = ff_calendar_tbl(ff_calendar)
+if _ff_tbl is not None:
+    story.append(body(
+        f"Dati reali da <b>Forex Factory</b> — tutti gli eventi USD ad alto e medio impatto "
+        f"per la settimana {WEEK_SHORT}. "
+        f"Gli eventi ad alto impatto possono muovere oro, dollaro e indici di punti percentuali in poche ore. "
+        f"Orari in ET (Eastern Time, UTC-4)."
+    ))
+    story.append(S(0.08))
+    story.append(_ff_tbl)
+else:
+    story.append(body(
+        f"Principali eventi macroeconomici USD attesi questa settimana ({WEEK_SHORT}). "
+        f"Gli appuntamenti ad alta importanza possono generare movimenti significativi su oro, dollaro e indici."
+    ))
+    story.append(S(0.08))
+    # Calendario AI fallback
+    _cal_hdr  = ParagraphStyle('cal_hdr2', fontName='Helvetica-Bold', fontSize=9,
+                    textColor=colors.white, alignment=TA_CENTER, leading=12)
+    _cal_date = ParagraphStyle('cal_date2', fontName='Helvetica-Bold', fontSize=9,
+                    textColor=TEXT_COLOR, alignment=TA_CENTER, leading=12)
+    _cal_cell = ParagraphStyle('cal_cell2', fontName='Helvetica', fontSize=9,
+                    textColor=TEXT_COLOR, leading=12)
+    def _il(text):
+        t=text.upper()
+        if 'CRITICA' in t or 'CRITICO' in t: return 'CRITICA',RED_IMPACT
+        if 'ALTA' in t or 'ALTO' in t: return 'ALTA',ORG_IMPACT
+        return 'MEDIA',YEL_IMPACT
+    def _ip(label,col,idx):
+        s=ParagraphStyle(f'cal_imp2_{idx}',fontName='Helvetica-Bold',fontSize=9,
+                textColor=col,alignment=TA_CENTER,leading=12)
+        return Paragraph(label,s)
+    def _gf(d): return f"{d.strftime('%a')} {d.day} {MESI_SHORT[d.month]}"
+    _lun=monday;_mar=monday+timedelta(1);_mer=monday+timedelta(2)
+    _gio=monday+timedelta(3);_ven=monday+timedelta(4)
+    _li,_lc=_il(ai["cal_lun_imp"]);_mi,_mc=_il(ai["cal_mar_imp"])
+    _mei,_mec=_il(ai["cal_mer_imp"]);_gi,_gc=_il(ai["cal_gio_imp"]);_vi,_vc=_il(ai["cal_ven_imp"])
+    _cal_data=[
+        [Paragraph('Data',_cal_hdr),Paragraph('Evento',_cal_hdr),
+         Paragraph('Mercati',_cal_hdr),Paragraph('Importanza',_cal_hdr)],
+        [Paragraph(_gf(_lun),_cal_date),Paragraph(ai["cal_lun_evento"],_cal_cell),
+         Paragraph(ai["cal_lun_mercati"],_cal_cell),_ip(_li,_lc,0)],
+        [Paragraph(_gf(_mar),_cal_date),Paragraph(ai["cal_mar_evento"],_cal_cell),
+         Paragraph(ai["cal_mar_mercati"],_cal_cell),_ip(_mi,_mc,1)],
+        [Paragraph(_gf(_mer),_cal_date),Paragraph(ai["cal_mer_evento"],_cal_cell),
+         Paragraph(ai["cal_mer_mercati"],_cal_cell),_ip(_mei,_mec,2)],
+        [Paragraph(_gf(_gio),_cal_date),Paragraph(ai["cal_gio_evento"],_cal_cell),
+         Paragraph(ai["cal_gio_mercati"],_cal_cell),_ip(_gi,_gc,3)],
+        [Paragraph(_gf(_ven),_cal_date),Paragraph(ai["cal_ven_evento"],_cal_cell),
+         Paragraph(ai["cal_ven_mercati"],_cal_cell),_ip(_vi,_vc,4)],
+    ]
+    _cal_t=Table(_cal_data,colWidths=[CW*0.16,CW*0.38,CW*0.25,CW*0.21])
+    _cal_t.setStyle(TableStyle([
+        ('BACKGROUND',(0,0),(-1,0),DARK_NAVY),('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+        ('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6),
+        ('LEFTPADDING',(0,0),(-1,-1),8),('RIGHTPADDING',(0,0),(-1,-1),8),
+        ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,LIGHT_GRAY]),
+        ('GRID',(0,0),(-1,-1),0.5,MID_GRAY),('BOX',(0,0),(-1,-1),0.5,colors.HexColor('#BDC3C7')),
+    ]))
+    story.append(_cal_t)
 story.append(S(0.1))
-story.append(body(
-    "<b>Come leggere l'impatto:</b> "
-    "<b>🔴 CRITICO</b> = evento che puo' muovere l'oro di $30-100+ in poche ore. "
-    "<b>🟠 ALTO</b> = notizia che influenza direttamente le aspettative di mercato. "
-    "<b>🟡 MEDIO</b> = contesto macro rilevante da monitorare."
-))
+story.append(body(f"<b>Nota:</b> {ai['cal_nota']}"))
 story.append(PageBreak())
-
+ 
 # SEZ 3 — GEOPOLITICA
 story.extend(sec("3. Geopolitica — Scenario Globale"))
 story.append(body(ai["geopolitica_intro"]))
@@ -505,7 +726,9 @@ story.append(bul(ai["geo_bullet_1"]))
 story.append(bul(ai["geo_bullet_2"]))
 story.append(bul(ai["geo_bullet_3"]))
 story.append(bul(ai["geo_bullet_4"]))
-
+story.append(bul(ai.get("geo_bullet_5", "")))
+story.append(bul(ai.get("geo_bullet_6", "")))
+ 
 # SEZ 4 — MERCATI AZIONARI
 story.extend(sec("4. Mercati Azionari — NASDAQ e S&amp;P 500"))
 story.append(body(ai["azionario_intro"]))
@@ -517,8 +740,21 @@ story.append(sub("NASDAQ Composite"))
 story.append(bul(ai["ndx_bullet_1"]))
 story.append(bul(ai["ndx_bullet_2"]))
 story.append(bul(ai["ndx_bullet_3"]))
-story.append(PageBreak())
-
+# CondPageBreak invece di PageBreak — nuova pagina solo se rimangono < 10cm
+story.append(CondPageBreak(10*cm))
+ 
+# SEZ 4b — COMMODITIES (WTI + Argento)
+story.extend(sec("4b. Commodity — WTI Crude Oil e Argento"))
+story.append(body(ai.get("wti_intro", "Il petrolio e l'argento sono asset chiave da monitorare in correlazione con l'oro.")))
+story.append(sub("WTI Crude Oil"))
+story.append(bul(ai.get("wti_bullet_1", "")))
+story.append(bul(ai.get("wti_bullet_2", "")))
+story.append(bul(ai.get("wti_bullet_3", "")))
+story.append(sub("Argento (XAG/USD)"))
+story.append(bul(ai.get("silver_bullet_1", "")))
+story.append(bul(ai.get("silver_bullet_2", "")))
+story.append(S(0.1))
+ 
 # SEZ 5 — DE-DOLLARIZZAZIONE
 story.extend(sec("5. De-Dollarizzazione e Acquisti Banche Centrali"))
 story.append(body(ai["dedollarizzazione_intro"]))
@@ -531,7 +767,7 @@ cb_data = [
 ]
 story.append(tbl(cb_data, [CW*0.27, CW*0.21, CW*0.24, CW*0.28]))
 story.append(S(0.1))
-
+ 
 # SEZ 6 — DAZI
 story.extend(sec("6. Dazi USA e Guerra Commerciale"))
 story.append(body(ai["dazi_intro"]))
@@ -539,7 +775,7 @@ story.append(bul(ai["dazi_bullet_1"]))
 story.append(bul(ai["dazi_bullet_2"]))
 story.append(bul(ai["dazi_bullet_3"]))
 story.append(bul(ai["dazi_bullet_4"]))
-
+ 
 # SEZ 7 — BANCHE CENTRALI
 story.extend(sec("7. Banche Centrali — Fed &amp; BCE"))
 story.append(sub("Federal Reserve (USA)"))
@@ -550,37 +786,10 @@ story.append(bul(ai["fed_bullet_4"]))
 story.append(sub("Banca Centrale Europea (BCE)"))
 story.append(bul(ai["bce_bullet_1"]))
 story.append(bul(ai["bce_bullet_2"]))
-# CondPageBreak: va a pagina nuova solo se rimangono meno di 9cm — evita pagina bianca finale
 story.append(CondPageBreak(9*cm))
-
-# SEZ 8 — CALENDARIO
-lun = monday
-mar = monday + timedelta(days=1)
-mer = monday + timedelta(days=2)
-gio = monday + timedelta(days=3)
-ven = monday + timedelta(days=4)
-def gf(d): return f"{d.strftime('%a')} {d.day} {MESI_SHORT[d.month]}"
-
-story.extend(sec(f"8. Calendario Notizie — {WEEK_LABEL}"))
-story.append(body(
-    "Le principali pubblicazioni macroeconomiche e gli eventi geopolitici da monitorare questa settimana. "
-    "I dati ad alto impatto possono generare movimenti significativi su oro, dollaro e indici azionari."
-))
-cal_data = [
-    ['Data', 'Evento', 'Mercati', 'Importanza'],
-    [gf(lun), ai["cal_lun_evento"], ai["cal_lun_mercati"], ai["cal_lun_imp"]],
-    [gf(mar), ai["cal_mar_evento"], ai["cal_mar_mercati"], ai["cal_mar_imp"]],
-    [gf(mer), ai["cal_mer_evento"], ai["cal_mer_mercati"], ai["cal_mer_imp"]],
-    [gf(gio), ai["cal_gio_evento"], ai["cal_gio_mercati"], ai["cal_gio_imp"]],
-    [gf(ven), ai["cal_ven_evento"], ai["cal_ven_mercati"], ai["cal_ven_imp"]],
-]
-story.append(tbl(cal_data, [CW*0.16, CW*0.38, CW*0.25, CW*0.21]))
-story.append(S(0.1))
-story.append(body(f"<b>Nota:</b> {ai['cal_nota']}"))
-story.append(S(0.1))
-
-# SEZ 9 — OUTLOOK
-story.extend(sec(f"9. Outlook — {WEEK_LABEL}"))
+ 
+# SEZ 8 — OUTLOOK
+story.extend(sec(f"8. Outlook — {WEEK_LABEL}"))
 story.append(body(ai["outlook_intro"]))
 story.append(bul(ai["outlook_bullet_1"]))
 story.append(bul(ai["outlook_bullet_2"]))
@@ -588,7 +797,7 @@ story.append(bul(ai["outlook_bullet_3"]))
 story.append(bul(ai["outlook_bullet_4"]))
 story.append(bul(ai["outlook_bullet_5"]))
 story.append(S(0.1))
-
+ 
 # DISCLAIMER
 story.append(HRFlowable(width=CW, thickness=0.5, color=MID_GRAY, spaceAfter=0.2*cm))
 story.append(Paragraph(
@@ -600,19 +809,19 @@ story.append(Paragraph(
     ParagraphStyle('disc', fontName='Helvetica-Oblique', fontSize=7,
         textColor=DARK_GRAY, leading=10.5, alignment=TA_CENTER)
 ))
-
+ 
 # BUILD
 doc = SimpleDocTemplate(OUTPUT, pagesize=A4,
     leftMargin=MARGIN, rightMargin=MARGIN, topMargin=1.8*cm, bottomMargin=2.2*cm)
 doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
 print(f"PDF generato: {OUTPUT}")
-
+ 
 # ── INVIO TELEGRAM ────────────────────────────────────────────────────────────
 BOT_TOKEN      = os.environ.get("BOT_TOKEN")
 CHANNEL_ID     = os.environ.get("CHANNEL_ID")
 TOPIC_ID       = os.environ.get("TOPIC_ID", "2")
 ADMIN_CHAT_ID  = os.environ.get("REVIEW_GROUP_ID", "-5122912249")  # privato admin
-
+ 
 def send_admin_alert(token, chat_id, message):
     """Invia un messaggio privato all'admin in caso di errore — mai visibile sul canale."""
     try:
@@ -623,7 +832,7 @@ def send_admin_alert(token, chat_id, message):
         )
     except Exception:
         pass  # se anche questo fallisce, logga solo su GitHub Actions
-
+ 
 def send_document_with_retry(token, channel_id, topic_id, filepath, filename, caption, retries=3):
     """Invia il PDF con fino a 3 tentativi automatici."""
     url = f"https://api.telegram.org/bot{token}/sendDocument"
@@ -648,7 +857,7 @@ def send_document_with_retry(token, channel_id, topic_id, filepath, filename, ca
             last_error = str(e)
             print(f"Tentativo {attempt} — eccezione: {last_error}")
     return last_error  # ritorna il messaggio di errore se tutti i tentativi falliscono
-
+ 
 if not BOT_TOKEN or not CHANNEL_ID:
     msg = "⚠️ *NexusGoldOne — Report NON inviato*\nBOT\\_TOKEN o CHANNEL\\_ID mancanti nelle variabili d'ambiente."
     print(msg)
