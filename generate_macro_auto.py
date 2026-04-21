@@ -98,7 +98,7 @@ def get_weekly_news():
                         score += 1
 
                 if score >= 3:
-                    date_str = pub_date.strftime('%d %b') if pub_date else '—'
+                    date_str = f"{pub_date.day} {MESI_SHORT[pub_date.month]}" if pub_date else '—'
                     impact   = '🔴 CRITICO' if score >= 9 else ('🟠 ALTO' if score >= 5 else '🟡 MEDIO')
                     articles.append({
                         'title':    title,
@@ -668,8 +668,8 @@ def news_tbl(articles):
         imp_style = ParagraphStyle(f'ntbl_imp_{i}', fontName='Helvetica-Bold', fontSize=8.5,
                         textColor=ic, alignment=TA_CENTER, leading=13)
 
-        # Titolo troncato a 80 chars per evitare overflow celle
-        title_text = art['title'][:80] + ('...' if len(art['title']) > 80 else '')
+        # Titolo troncato a 80 chars per evitare overflow celle; & escapato per ReportLab Paragraph
+        title_text = (art['title'][:80] + ('...' if len(art['title']) > 80 else '')).replace('&', '&amp;')
         # Fonte: abbrevia nomi lunghi
         src_text = art['source'].replace('Gold News', 'Gold').replace('Finance', 'Fin.').replace('Markets', 'Mkt')
 
@@ -808,7 +808,7 @@ story.append(PageBreak())
 if weekly_news:
     story.extend(sec("2b. Notizie Flash — Ultime 72 Ore"))
     story.append(body(
-        f"Notizie di alto impatto dai principali feed finanziari globali, aggiornate al {today.strftime('%d %B %Y')}. "
+        f"Notizie di alto impatto dai principali feed finanziari globali, aggiornate al {today.day} {MESI[today.month]} {today.year}. "
         f"Fonti: Kitco Gold News, Reuters, Yahoo Finance, CNBC, MarketWatch. "
         f"Le notizie sono classificate per rilevanza (Critico / Alto / Medio) in base all'impatto atteso su oro, dollaro e mercati."
     ))
@@ -872,6 +872,7 @@ story.append(bul(ai["dazi_bullet_1"]))
 story.append(bul(ai["dazi_bullet_2"]))
 story.append(bul(ai["dazi_bullet_3"]))
 story.append(bul(ai["dazi_bullet_4"]))
+story.append(CondPageBreak(7*cm))
 
 # SEZ 7 — BANCHE CENTRALI
 story.extend(sec("7. Banche Centrali — Fed &amp; BCE"))
