@@ -11,22 +11,34 @@ logger = logging.getLogger(__name__)
 
 TOKEN      = os.environ.get("BOT_TOKEN", "8274279855:AAFIvg_3Yo21YKrkoj7oleNqD3m8m0qLmEA")
 
+# ID del canale/gruppo a cui mandare il report settimanale.
+# Impostalo come variabile d'ambiente su Railway (es. -1001234567890)
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "@NexusGoldOne")
-MACRO_TOPIC_ID = 2
+MACRO_TOPIC_ID = 2  # Topic "Macro e Geopolitica" nel canale
+
+# ─────────────────────────────────────────
+#  PATH PDF
+# ─────────────────────────────────────────
 
 PDF_DIR = os.path.dirname(__file__)
 
 PDF_APERTURA   = os.path.join(PDF_DIR, "2 Nexus One - Apertura conto.pdf")
+PDF_GUIDA      = os.path.join(PDF_DIR, "Guida allacciamento.pdf")
 PDF_SOFTWARE   = os.path.join(PDF_DIR, "1 Nexus One - Presentazione.pdf")
 PDF_MANUALE    = os.path.join(PDF_DIR, "GoldFusion.pdf")
 PDF_FAQ        = os.path.join(PDF_DIR, "NexusGoldOne_FAQ.pdf")
 
 
 def get_latest_macro_pdf():
+    """Restituisce il percorso del PDF macro più recente (MACRO_Geopolitica_*.pdf)."""
     pattern = os.path.join(PDF_DIR, "MACRO_Geopolitica_*.pdf")
     files = sorted(glob.glob(pattern))
     return files[-1] if files else None
 
+
+# ─────────────────────────────────────────
+#  MESSAGGI
+# ─────────────────────────────────────────
 
 WELCOME = (
     "Benvenuto in *NexusGoldOne* ⚡\n\n"
@@ -35,10 +47,9 @@ WELCOME = (
 
 GUIDA = (
     "Guida per iniziare 🚀\n\n"
-    "Ecco la guida completa per aprire il tuo conto. Una volta aperto il conto ed eseguito il deposito, "
-    "contattaci su @SuppNexusGoldOne per ricevere il link di allacciamento con la guida.\n\n"
-    "Per qualsiasi domanda scrivici direttamente.\n\n"
-    "💬 @SuppNexusGoldOne"
+    "Ecco il link di registrazione a FpTrading:\n"
+    "👉 [Registrati qui](https://portal.fptrading.com/register?fpm-affiliate-utm-source=IB&fpm-affiliate-agt=475978)\n\n"
+    "Di seguito trovate la guida passo per passo 📄"
 )
 
 COPYTRADING = (
@@ -66,6 +77,9 @@ SUPPORTO_MSG = (
     "👉 @SuppNexusGoldOne"
 )
 
+# ─────────────────────────────────────────
+#  TASTIERE
+# ─────────────────────────────────────────
 
 def main_keyboard():
     return InlineKeyboardMarkup([
@@ -80,8 +94,15 @@ def back_menu_keyboard():
         [InlineKeyboardButton("⬅️  Torna al menu", callback_data="menu")],
     ])
 
+# ─────────────────────────────────────────
+#  REPORT MACRO SETTIMANALE
+# ─────────────────────────────────────────
 
 async def send_weekly_macro(context: ContextTypes.DEFAULT_TYPE):
+    """
+    Job schedulato: invia il report macro del lunedì mattina al canale/gruppo.
+    Cerca automaticamente il PDF più recente MACRO_Geopolitica_*.pdf
+    """
     if not CHANNEL_ID:
         logger.warning("CHANNEL_ID non impostato — report settimanale non inviato.")
         return
@@ -115,6 +136,10 @@ async def send_weekly_macro(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def macro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comando /macro — invia manualmente il report macro più recente all'utente.
+    Utile per testare o per richiedere il report fuori dal lunedì.
+    """
     pdf_path = get_latest_macro_pdf()
     if not pdf_path:
         await update.message.reply_text("⚠️ Nessun report macro disponibile al momento.")
@@ -133,6 +158,9 @@ async def macro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
+# ─────────────────────────────────────────
+#  HANDLERS
+# ─────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(WELCOME, reply_markup=main_keyboard(), parse_mode="Markdown")
@@ -149,7 +177,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(GUIDA, reply_markup=back_menu_keyboard(), parse_mode="Markdown")
         await query.message.reply_document(
             document=open(PDF_APERTURA, "rb"),
-            filename="NexusGoldOne - Apertura conto.pdf"
+            filename="NexusGoldOne - Apertura conto.pdf",
+            caption="📋 Guida passo per passo per aprire il conto.\n\nUna volta aperto il conto ed eseguito il deposito, contattaci per ricevere il link di allacciamento.\n\n💬 @SuppNexusGoldOne"
         )
 
     elif data == "copytrading":
@@ -173,23 +202,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "supporto":
         await query.edit_message_text(SUPPORTO_MSG, reply_markup=back_menu_keyboard(), parse_mode="Markdown")
 
+# ─────────────────────────────────────────
+#  AVVIO
+# ─────────────────────────────────────────
 
 def main():
     app = Application.builder().token(TOKEN).build()
 
+    # Handler comandi
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("macro", macro_command))
     app.add_handler(CallbackQueryHandler(button_handler))
 
+    # ── Job settimanale: ogni lunedì alle 08:00 ora italiana ──────────────────
     tz_rome = pytz.timezone("Europe/Rome")
     send_time = datetime.time(hour=8, minute=0, second=0, tzinfo=tz_rome)
 
     app.job_queue.run_daily(
         callback=send_weekly_macro,
         time=send_time,
-        days=(0,),
+        days=(0,),          # 0 = lunedì (Mon=0, Tue=1, ... Sun=6)
         name="weekly_macro_report"
     )
+    logger.info("Job 'weekly_macro_report' schedulato — ogni lunedì alle 08:00 (Roma)")
 
     app.run_polling(allowed_updates=["message", "callback_query"])
 
