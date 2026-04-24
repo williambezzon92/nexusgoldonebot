@@ -46,9 +46,9 @@ WELCOME = (
 )
 
 GUIDA = (
-    "Guida per iniziare 🚀\n\n"
-    "Ecco il link di registrazione a FpTrading:\n"
-    "👉 [Registrati qui](https://portal.fptrading.com/register?fpm-affiliate-utm-source=IB&fpm-affiliate-agt=475978)\n\n"
+     "Guida per iniziare:\n\n"
+    "Se si possiede già un account su FpTrading, scrivere al supporto per verificare le condizioni di mercato, "
+    "altrimenti 👉🏻 [Registrati qui](https://portal.fptrading.com/register?fpm-affiliate-utm-source=IB&fpm-affiliate-agt=475978)\n\n"
     "Di seguito trovate la guida passo per passo 📄"
 )
 
